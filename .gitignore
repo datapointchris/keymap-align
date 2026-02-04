@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+.venv
+.pytest_cache/
+.ruff_cache/
+.DS_Store
+tests/test_keymaps/test_output/

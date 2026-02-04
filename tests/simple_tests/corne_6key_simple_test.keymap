@@ -1,0 +1,17 @@
+/ {
+    keymap {
+        compatible = "zmk,keymap";
+        BASE {
+            bindings = <
+&kp A &kp B &kp C
+&kp D &kp E &kp F
+            >;
+        };
+        LAYER2 {
+            bindings = <
+&lt 1 A &hml LCTRL B &trans
+&kp X   &kp Y        &kp Z
+            >;
+        };
+    };
+};

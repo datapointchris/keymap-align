@@ -1,0 +1,22 @@
+[project]
+name = "keymap-align"
+version = "0.1.0"
+description = "ZMK keymap alignment tool for custom mechanical keyboards"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+
+[project.scripts]
+keymap-align = "keymap_align.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.4.1",
+]

@@ -1,0 +1,7 @@
+{
+    "name": "Simple 3x2 Layout",
+    "layout": [
+        ["X", "X", "X"],
+        ["X", "X", "X"]
+    ]
+}
