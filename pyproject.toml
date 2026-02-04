@@ -2,21 +2,114 @@
 name = "keymap-align"
 version = "0.1.0"
 description = "ZMK keymap alignment tool for custom mechanical keyboards"
-readme = {text = "", content-type = "text/plain"}
-requires-python = ">=3.10"
+authors = [{ name = "Chris Birch", email = "datapointchris@gmail.com" }]
+license = { text = "MIT" }
+readme = "README.md"
+requires-python = ">=3.13"
 dependencies = []
+keywords = ["zmk", "keymap", "keyboard", "alignment", "firmware"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Software Development :: Build Tools",
+]
+
+[project.urls]
+Repository = "https://github.com/datapointchris/keymap-align"
 
 [project.scripts]
 keymap-align = "keymap_align.cli:main"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-[tool.pytest.ini_options]
-testpaths = ["tests"]
-
 [dependency-groups]
 dev = [
+    "bandit>=1.7.8",
+    "mypy>=1.10.0",
+    "ruff>=0.7.0",
+    "pre-commit>=4.3.0",
+]
+test = [
     "pytest>=8.4.1",
 ]
+
+
+# ---------- Tool Configurations ---------- #
+
+
+[tool.bandit]
+exclude_dirs = [".git", ".mypy_cache", ".pytest_cache", ".ruff_cache", ".venv", "tests"]
+
+
+[tool.codespell]
+skip = '*.lock'
+check-filenames = true
+
+
+[tool.mypy]
+pretty = true
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_return_any = false
+
+
+[tool.pytest.ini_options]
+addopts = "-vv"
+minversion = "8.0"
+testpaths = ["tests"]
+
+
+[tool.ruff]
+line-length = 140
+exclude = [
+    ".git",
+    "__pycache__",
+    ".mypy_cache",
+    ".ruff_cache",
+    ".vscode",
+    ".venv",
+    "build",
+    "dist",
+]
+
+[tool.ruff.format]
+quote-style = "single"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]
+ignore = ["SIM108"]
+
+[tool.ruff.lint.isort]
+force-single-line = true
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+
+# ---------- Build System ---------- #
+
+
+[build-system]
+requires = ["uv_build>=0.9.13,<0.10.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "keymap_align"
+module-root = "src"
