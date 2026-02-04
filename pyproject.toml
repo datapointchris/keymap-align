@@ -2,7 +2,7 @@
 name = "keymap-align"
 version = "0.1.0"
 description = "ZMK keymap alignment tool for custom mechanical keyboards"
-readme = "README.md"
+readme = {text = "", content-type = "text/plain"}
 requires-python = ">=3.10"
 dependencies = []
 
