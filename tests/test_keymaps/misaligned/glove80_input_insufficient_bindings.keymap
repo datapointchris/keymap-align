@@ -13,12 +13,12 @@
         };
         DEV {
             bindings = <
-    &trans         &trans      &trans        &trans       &trans                                                                                                                  &trans        &trans       &trans       &trans         &trans              
-    &trans         &trans      &trans        &trans       &trans        &trans                                                                                        &trans      &trans        &trans       &trans       &trans         &trans              
-    &trans         &trans      &trans        &trans       &trans        &trans                                                                                        &trans      &kp GRAVE     &kp STAR     &kp PLUS     &kp EQUAL      &trans              
-    &trans         &trans      &trans        &trans       &trans        &trans                                                                                        &kp PIPE    &kp MINUS     &kp LPAR     &kp RPAR     &kp UNDERSCORE &kp MINUS              
-    &trans         &trans      &trans        &trans       &trans        &trans       &trans    &trans     &trans         &trans                &trans     &trans      &trans      &trans        &kp LBKT     &kp RBKT     &trans         &trans              
-    &trans         &trans      &trans        &trans       &trans                     &trans    &trans     &trans         &trans                &trans     &trans                  &trans        &trans       &trans       &trans         &trans         
+    &trans         &trans      &trans        &trans       &trans                                                                                                                  &trans        &trans       &trans       &trans         &trans
+    &trans         &trans      &trans        &trans       &trans        &trans                                                                                        &trans      &trans        &trans       &trans       &trans         &trans
+    &trans         &trans      &trans        &trans       &trans        &trans                                                                                        &trans      &kp GRAVE     &kp STAR     &kp PLUS     &kp EQUAL      &trans
+    &trans         &trans      &trans        &trans       &trans        &trans                                                                                        &kp PIPE    &kp MINUS     &kp LPAR     &kp RPAR     &kp UNDERSCORE &kp MINUS
+    &trans         &trans      &trans        &trans       &trans        &trans       &trans    &trans     &trans         &trans                &trans     &trans      &trans      &trans        &kp LBKT     &kp RBKT     &trans         &trans
+    &trans         &trans      &trans        &trans       &trans                     &trans    &trans     &trans         &trans                &trans     &trans                  &trans        &trans       &trans       &trans         &trans
             >;
         };
         NPAD {
@@ -43,12 +43,12 @@
         };
         MOUSE {
             bindings = <
-   &tog MOUSE      &mkp MB4      &mkp MCLK     &mkp MB5      &trans                                                                                                                   &trans        &trans        &trans        &trans        &trans              
-   &trans          &trans        &trans        &trans        &trans        &trans                                                                                        &trans      &trans        &trans        &trans        &trans        &trans              
-   &trans          &trans        &trans        &trans        &trans        &trans                                                                                        &msc SCRL_LEFT &msc SCRL_DOWN &msc SCRL_UP &msc SCRL_RIGHT &tog MOUSE       
-   &trans          &trans        &trans        &trans        &trans        &trans                                                                                        &mmv MOVE_LEFT &mmv MOVE_DOWN &mmv MOVE_UP &mmv MOVE_RIGHT &trans              
-   &trans          &trans        &trans        &trans        &trans        &trans        &trans        &trans        &to 0         &trans        &trans        &trans      &mkp MB4      &mkp MCLK     &mkp MB5      &trans        &trans               
-   &magic MAGIC 0  &trans        &trans        &kp SPACE     &kp LSHIFT                  &mkp LCLK     &mkp RCLK     &trans        &trans        &trans        &trans                    &trans        &trans        &trans        &trans        &trans              
+   &tog MOUSE      &mkp MB4      &mkp MCLK     &mkp MB5      &trans                                                                                                                   &trans        &trans        &trans        &trans        &trans
+   &trans          &trans        &trans        &trans        &trans        &trans                                                                                        &trans      &trans        &trans        &trans        &trans        &trans
+   &trans          &trans        &trans        &trans        &trans        &trans                                                                                        &msc SCRL_LEFT &msc SCRL_DOWN &msc SCRL_UP &msc SCRL_RIGHT &tog MOUSE
+   &trans          &trans        &trans        &trans        &trans        &trans                                                                                        &mmv MOVE_LEFT &mmv MOVE_DOWN &mmv MOVE_UP &mmv MOVE_RIGHT &trans
+   &trans          &trans        &trans        &trans        &trans        &trans        &trans        &trans        &to 0         &trans        &trans        &trans      &mkp MB4      &mkp MCLK     &mkp MB5      &trans        &trans
+   &magic MAGIC 0  &trans        &trans        &kp SPACE     &kp LSHIFT                  &mkp LCLK     &mkp RCLK     &trans        &trans        &trans        &trans                    &trans        &trans        &trans        &trans        &trans
             >;
         };
     };
