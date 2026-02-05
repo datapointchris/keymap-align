@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tests for the layouts module."""
 
 import pytest

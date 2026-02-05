@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
-
 import json
 import re
+from pathlib import Path
 
 
 class Colors:
@@ -62,13 +61,12 @@ def get_behavior_color(behavior):
 
     if behavior_name in DIMMED_BEHAVIORS:
         return Colors.GRAY
-    elif behavior_name in KEYPRESS_BEHAVIORS:
+    if behavior_name in KEYPRESS_BEHAVIORS:
         return Colors.ORANGE
-    elif behavior_name in STOCK_ZMK_BEHAVIORS:
+    if behavior_name in STOCK_ZMK_BEHAVIORS:
         return Colors.PURPLE
-    else:
-        # Custom/user-defined behaviors (home row mods, custom macros, etc.)
-        return Colors.MAGENTA
+    # Custom/user-defined behaviors (home row mods, custom macros, etc.)
+    return Colors.MAGENTA
 
 
 def parse_layer_for_debug(formatted_layer):
@@ -148,7 +146,7 @@ def _handle_multi_param_behavior(tokens, i, binding_parts):
     while i < len(tokens) and param_count < max_params:
         if tokens[i].startswith('&'):
             # For behaviors like &hmr, &hml, &hmrt, &hmlt, a behavior can be the second parameter
-            if param_count == 0 or (param_count == 1 and behavior in ['&hmr', '&hml', '&hmrt', '&hmlt']):
+            if param_count == 0 or (param_count == 1 and behavior in ('&hmr', '&hml', '&hmrt', '&hmlt')):
                 binding_parts.append(tokens[i])
                 i += 1
                 param_count += 1
@@ -293,7 +291,7 @@ def visual_debug_print_layout(layout):
     print(f'{"=" * 70}{Colors.RESET}')
 
     print(f'\n{Colors.CYAN}KEYBOARD LAYOUT INFORMATION{Colors.RESET}')
-    print(f'{"─" * 50}')
+    print('─' * 50)
 
     layout_matrix = layout['layout']
     rows = len(layout_matrix)
@@ -305,7 +303,7 @@ def visual_debug_print_layout(layout):
     print(f'  Total keys:  {Colors.YELLOW}{total_keys}{Colors.RESET}')
 
     print(f'\n{Colors.CYAN}LAYOUT MATRIX{Colors.RESET} (X = key position, - = empty)')
-    print(f'{"─" * 50}')
+    print('─' * 50)
 
     for row_idx, row in enumerate(layout_matrix):
         row_display = []
@@ -320,12 +318,12 @@ def visual_debug_print_layout(layout):
 def visual_debug_print_layer_bindings(layers, layout, column_widths):
     """Print layer bindings in keyboard layout matrix format."""
     print(f'\n{Colors.CYAN}COLUMN WIDTHS{Colors.RESET}')
-    print(f'{"─" * 50}')
+    print('─' * 50)
     print('  Col: ' + ' '.join(f'{i:2d}' for i in range(len(column_widths))))
     print('  Width: ' + ' '.join(f'{width:2d}' for width in column_widths))
 
     print(f'\n{Colors.CYAN}LAYER BINDINGS LAYOUT{Colors.RESET}')
-    print(f'{"─" * 50}')
+    print('─' * 50)
 
     layout_matrix = layout['layout']
 
@@ -402,14 +400,13 @@ def _colorize_binding(binding):
 
     if len(parts) > 1:
         return f'{behavior_color}{parts[0]}{Colors.RESET} {" ".join(parts[1:])}'
-    else:
-        return f'{behavior_color}{binding}{Colors.RESET}'
+    return f'{behavior_color}{binding}{Colors.RESET}'
 
 
 def visual_debug_print_formatted_layers(structured_layers, column_widths):
     """Print formatted layers with colored output for debugging."""
     print(f'\n{Colors.CYAN}FORMATTED LAYERS OUTPUT{Colors.RESET}')
-    print(f'{"─" * 50}')
+    print('─' * 50)
 
     for layer_name, layer_data in structured_layers.items():
         formatted_layer = format_layer(layer_name, layer_data, column_widths)
@@ -429,8 +426,7 @@ def _print_colored_bindings(clean_bindings):
 
         if len(behavior_parts) > 1:
             return f'{behavior_color}{behavior_parts[0]}{Colors.RESET} {" ".join(behavior_parts[1:])}'
-        else:
-            return f'{behavior_color}{behavior}{Colors.RESET}'
+        return f'{behavior_color}{behavior}{Colors.RESET}'
 
     behavior_pattern = r'&\w+(?:\s+[^&\s]+(?:\s+[^&\s]+)*)?'
 
@@ -446,8 +442,7 @@ def align_keymap_with_layout(keymap_file, layout_file, output_file=None, debug=F
         return False
 
     try:
-        with open(keymap_file) as f:
-            keymap_content = f.read()
+        keymap_content = Path(keymap_file).read_text()
     except FileNotFoundError:
         print(f"Error: Keymap file '{keymap_file}' not found.")
         return False
@@ -516,11 +511,10 @@ def align_keymap_with_layout(keymap_file, layout_file, output_file=None, debug=F
     output_content = pre_keymap_content + '\n' + keymap_section + '\n' + post_keymap_content
 
     # Determine output destination
-    target_file = output_file if output_file else keymap_file
+    target_file = output_file or keymap_file
 
     try:
-        with open(target_file, 'w') as f:
-            f.write(output_content)
+        Path(target_file).write_text(output_content)
 
         if output_file:
             print(f'Output written to: {output_file}')

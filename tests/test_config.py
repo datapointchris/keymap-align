@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Tests for the config module."""
 
 import pytest

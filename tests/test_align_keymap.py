@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Comprehensive tests for keymap_align package using pytest.
 """
@@ -105,8 +104,7 @@ def sample_keymap_content():
 def sample_keymap_file(temp_dir, sample_keymap_content):
     """Sample keymap file for testing."""
     keymap_file = temp_dir / 'test_keymap.keymap'
-    with open(keymap_file, 'w') as f:
-        f.write(sample_keymap_content)
+    keymap_file.write_text(sample_keymap_content)
     return keymap_file
 
 
@@ -246,8 +244,7 @@ class TestLayerExtraction:
         glove80_layout_file = get_test_file('layouts/glove80_80key_layout.json')
 
         load_layout(str(glove80_layout_file))
-        with open(insufficient_file) as f:
-            content = f.read()
+        content = insufficient_file.read_text()
         layers = extract_all_layers(content)
 
         # Should extract layers but they may be insufficient
@@ -489,8 +486,7 @@ class TestAlignment:
         assert output_file.stat().st_size > 0, 'Output file should not be empty'
 
         # Verify basic structure is maintained
-        with open(output_file) as f:
-            content = f.read()
+        content = output_file.read_text()
         assert 'keymap' in content
         assert 'BASE' in content
         assert 'LAYER2' in content
@@ -543,10 +539,8 @@ class TestExactMatching:
 
         if not files_identical:
             # Provide helpful debugging info if files don't match
-            with open(output_file) as f:
-                actual_content = f.read()
-            with open(reference_file) as f:
-                expected_content = f.read()
+            actual_content = output_file.read_text()
+            expected_content = reference_file.read_text()
 
             # Show file sizes for quick debugging
             actual_size = len(actual_content)
@@ -574,10 +568,8 @@ class TestExactMatching:
 
         if not files_identical:
             # Provide helpful debugging info if files don't match
-            with open(output_file) as f:
-                actual_content = f.read()
-            with open(reference_file) as f:
-                expected_content = f.read()
+            actual_content = output_file.read_text()
+            expected_content = reference_file.read_text()
 
             # Show file sizes for quick debugging
             actual_size = len(actual_content)
@@ -607,15 +599,13 @@ class TestErrorHandling:
         """Test handling of malformed JSON layout file."""
         # Create malformed JSON file
         bad_layout_file = temp_dir / 'bad_layout.json'
-        with open(bad_layout_file, 'w') as f:
-            f.write('{ invalid json')
+        bad_layout_file.write_text('{ invalid json')
 
         output_file = temp_dir / 'output.keymap'
         keymap_file = temp_dir / 'test.keymap'
 
         # Create minimal keymap
-        with open(keymap_file, 'w') as f:
-            f.write('/ { keymap { BASE { bindings = < &kp A >; }; }; };')
+        keymap_file.write_text('/ { keymap { BASE { bindings = < &kp A >; }; }; };')
 
         # Should handle malformed JSON gracefully
         success = align_keymap_with_layout(str(keymap_file), str(bad_layout_file), str(output_file))
@@ -630,8 +620,7 @@ class TestErrorHandling:
         layout = load_layout(str(layout_file))
         assert layout is not None, 'Layout should load successfully'
 
-        with open(excess_file) as f:
-            content = f.read()
+        content = excess_file.read_text()
         layers = extract_all_layers(content)
         assert len(layers) > 0
 
@@ -663,12 +652,8 @@ class TestAlignment_Formatting:
         """Test that all columns have exactly 2 spaces of padding after the longest binding."""
         reference_file = get_test_file('test_keymaps/correct/glove80_reference_properly_aligned.keymap')
 
-        with open(reference_file) as f:
-            content = f.read()
-
         # Extract one layer's bindings for testing
-        lines = content.split('\n')
-        binding_lines = [line for line in lines if line.strip().startswith('&')]
+        binding_lines = [line for line in reference_file.read_text().split('\n') if line.strip().startswith('&')]
 
         if binding_lines:
             # Check that bindings are properly spaced
