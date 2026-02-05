@@ -2,6 +2,9 @@ import json
 import re
 from pathlib import Path
 
+from keymap_align.config import DEFAULT_INDENT_SIZE
+from keymap_align.config import DEFAULT_PADDING
+
 
 class Colors:
     """ANSI Color codes for terminal output."""
@@ -48,9 +51,6 @@ STOCK_ZMK_BEHAVIORS = {
 
 # Behaviors that take multiple parameters (including behavior parameters)
 MULTI_PARAM_BEHAVIORS = {'&hmr', '&hml', '&hmrt', '&hmlt', '&ltl', '&ltr', '&td'}
-
-# Default padding for column alignment
-DEFAULT_COLUMN_PADDING = 2
 
 
 def get_behavior_color(behavior):
@@ -241,7 +241,7 @@ def build_layer_structure(layers, layout):
     return structured_layers
 
 
-def calculate_column_widths(structured_layers, layout, padding=DEFAULT_COLUMN_PADDING):
+def calculate_column_widths(structured_layers, layout, padding=DEFAULT_PADDING):
     layout_matrix = layout['layout']
     num_columns = len(layout_matrix[0]) if layout_matrix else 0
     column_widths = [0] * num_columns
@@ -257,20 +257,33 @@ def calculate_column_widths(structured_layers, layout, padding=DEFAULT_COLUMN_PA
     return [width + padding for width in column_widths]
 
 
-def format_layer(layer_name, layer_data, column_widths):
+def format_layer(layer_name, layer_data, column_widths, indent_size=DEFAULT_INDENT_SIZE):
+    """Format a layer with proper indentation.
+
+    Args:
+        layer_name: Name of the layer
+        layer_data: Dict with 'rows' and 'display_name'
+        column_widths: List of column widths for alignment
+        indent_size: Number of spaces per indentation level (default 4)
+    """
     layer_rows = layer_data['rows']
     display_name = layer_data['display_name']
 
-    lines = [f'        {layer_name} {{']
+    # Indentation levels (all multiples of indent_size)
+    indent_2 = ' ' * (2 * indent_size)  # 8 spaces by default - layer block
+    indent_3 = ' ' * (3 * indent_size)  # 12 spaces by default - bindings declaration
+    indent_binding = ' ' * indent_size  # 4 spaces by default - binding rows (minimal for wide keyboards)
+
+    lines = [f'{indent_2}{layer_name} {{']
 
     # Add display-name if it exists
     if display_name:
-        lines.append(f'            display-name = "{display_name}";')
+        lines.append(f'{indent_3}display-name = "{display_name}";')
 
-    lines.append('            bindings = <')
+    lines.append(f'{indent_3}bindings = <')
 
     for row in layer_rows:
-        row_content = '   '  # Base indentation
+        row_content = indent_binding
 
         for col_idx, binding in enumerate(row):
             if binding is not None:
@@ -280,7 +293,7 @@ def format_layer(layer_name, layer_data, column_widths):
 
         lines.append(row_content.rstrip())
 
-    lines.extend(['            >;', '        };'])
+    lines.extend([f'{indent_3}>;', f'{indent_2}}};'])
     return '\n'.join(lines)
 
 
@@ -403,13 +416,13 @@ def _colorize_binding(binding):
     return f'{behavior_color}{binding}{Colors.RESET}'
 
 
-def visual_debug_print_formatted_layers(structured_layers, column_widths):
+def visual_debug_print_formatted_layers(structured_layers, column_widths, indent_size=DEFAULT_INDENT_SIZE):
     """Print formatted layers with colored output for debugging."""
     print(f'\n{Colors.CYAN}FORMATTED LAYERS OUTPUT{Colors.RESET}')
     print('─' * 50)
 
     for layer_name, layer_data in structured_layers.items():
-        formatted_layer = format_layer(layer_name, layer_data, column_widths)
+        formatted_layer = format_layer(layer_name, layer_data, column_widths, indent_size)
         parsed_name, clean_bindings = parse_layer_for_debug(formatted_layer)
 
         print(f'\n{Colors.BLUE}{parsed_name}{Colors.RESET}')
@@ -436,7 +449,24 @@ def _print_colored_bindings(clean_bindings):
             print(f'  {colored_line}')
 
 
-def align_keymap_with_layout(keymap_file, layout_file, output_file=None, debug=False):
+def align_keymap_with_layout(
+    keymap_file,
+    layout_file,
+    output_file=None,
+    debug=False,
+    indent_size=DEFAULT_INDENT_SIZE,
+    padding=DEFAULT_PADDING,
+):
+    """Align keymap bindings according to keyboard layout.
+
+    Args:
+        keymap_file: Path to the keymap file
+        layout_file: Path to the layout JSON file
+        output_file: Optional output file path (default: modify in place)
+        debug: Enable debug output
+        indent_size: Number of spaces per indentation level (default 4)
+        padding: Number of spaces between columns (default 2)
+    """
     layout = load_layout(layout_file)
     if layout is None:
         return False
@@ -454,12 +484,12 @@ def align_keymap_with_layout(keymap_file, layout_file, output_file=None, debug=F
 
     print(f'Found layers: {list(layers.keys())}')
     structured_layers = build_layer_structure(layers, layout)
-    column_widths = calculate_column_widths(structured_layers, layout)
+    column_widths = calculate_column_widths(structured_layers, layout, padding)
 
     if debug:
         visual_debug_print_layout(layout)
         visual_debug_print_layer_bindings(layers, layout, column_widths)
-        visual_debug_print_formatted_layers(structured_layers, column_widths)
+        visual_debug_print_formatted_layers(structured_layers, column_widths, indent_size)
         return True
 
     # Parse original file to find keymap section boundaries
@@ -495,16 +525,19 @@ def align_keymap_with_layout(keymap_file, layout_file, output_file=None, debug=F
     pre_keymap_content = '\n'.join(lines[:keymap_start_idx])
     post_keymap_content = '\n'.join(lines[keymap_end_idx + 1 :])
 
-    # Generate new keymap section content
-    keymap_lines = ['    keymap {', '        compatible = "zmk,keymap";']
+    # Generate new keymap section content with configurable indentation
+    indent_1 = ' ' * indent_size  # 4 spaces by default
+    indent_2 = ' ' * (2 * indent_size)  # 8 spaces by default
+    keymap_lines = [f'{indent_1}keymap {{', f'{indent_2}compatible = "zmk,keymap";']
+
     for layer_name, layer_data in structured_layers.items():
-        formatted_layer = format_layer(layer_name, layer_data, column_widths)
+        formatted_layer = format_layer(layer_name, layer_data, column_widths, indent_size)
         keymap_lines.append(formatted_layer)
         layer_rows = layer_data['rows']
         binding_count = sum(1 for row in layer_rows for binding in row if binding is not None)
         print(f'Formatted {layer_name}: {binding_count} bindings')
 
-    keymap_lines.append('    };')
+    keymap_lines.append(f'{indent_1}}};')
     keymap_section = '\n'.join(keymap_lines)
 
     # Combine all parts

@@ -2,7 +2,11 @@
 
 import pytest
 
+from keymap_align.config import DEFAULT_INDENT_SIZE
+from keymap_align.config import DEFAULT_PADDING
+from keymap_align.config import AlignConfig
 from keymap_align.config import find_config_file
+from keymap_align.config import get_align_config
 from keymap_align.config import load_config
 from keymap_align.config import resolve_config_layout
 
@@ -145,3 +149,88 @@ class TestResolveConfigLayout:
 
         expected = str((nested.parent / 'layouts' / 'my.json').resolve())
         assert result == expected
+
+
+class TestGetAlignConfig:
+    """Tests for get_align_config function."""
+
+    def test_returns_defaults_for_empty_config(self, tmp_path):
+        """Should return default values when config is empty."""
+        config_file = tmp_path / 'keymap_align.toml'
+        result = get_align_config({}, config_file)
+
+        assert result.layout is None
+        assert result.indent_size == DEFAULT_INDENT_SIZE
+        assert result.padding == DEFAULT_PADDING
+
+    def test_parses_layout_from_config(self, tmp_path):
+        """Should parse layout from config."""
+        config_file = tmp_path / 'keymap_align.toml'
+        result = get_align_config({'layout': 'corne42'}, config_file)
+
+        assert result.layout == 'corne42'
+
+    def test_parses_indent_size_from_config(self, tmp_path):
+        """Should parse indent_size from config."""
+        config_file = tmp_path / 'keymap_align.toml'
+        result = get_align_config({'indent_size': 2}, config_file)
+
+        assert result.indent_size == 2
+
+    def test_parses_padding_from_config(self, tmp_path):
+        """Should parse padding from config."""
+        config_file = tmp_path / 'keymap_align.toml'
+        result = get_align_config({'padding': 4}, config_file)
+
+        assert result.padding == 4
+
+    def test_parses_all_options(self, tmp_path):
+        """Should parse all config options together."""
+        config_file = tmp_path / 'keymap_align.toml'
+        config = {
+            'layout': 'glove80',
+            'indent_size': 2,
+            'padding': 3,
+        }
+        result = get_align_config(config, config_file)
+
+        assert result.layout == 'glove80'
+        assert result.indent_size == 2
+        assert result.padding == 3
+
+    def test_resolves_layout_path(self, tmp_path):
+        """Should resolve relative layout paths."""
+        config_file = tmp_path / 'keymap_align.toml'
+        config = {'layout': './my_layout.json'}
+        result = get_align_config(config, config_file)
+
+        expected = str((tmp_path / 'my_layout.json').resolve())
+        assert result.layout == expected
+
+    def test_works_without_config_path(self):
+        """Should work when config_path is None."""
+        result = get_align_config({'layout': 'piantor', 'indent_size': 8}, None)
+
+        assert result.layout == 'piantor'
+        assert result.indent_size == 8
+        assert result.padding == DEFAULT_PADDING
+
+
+class TestAlignConfig:
+    """Tests for AlignConfig dataclass."""
+
+    def test_default_values(self):
+        """Should have correct default values."""
+        config = AlignConfig()
+
+        assert config.layout is None
+        assert config.indent_size == DEFAULT_INDENT_SIZE
+        assert config.padding == DEFAULT_PADDING
+
+    def test_custom_values(self):
+        """Should accept custom values."""
+        config = AlignConfig(layout='corne42', indent_size=2, padding=4)
+
+        assert config.layout == 'corne42'
+        assert config.indent_size == 2
+        assert config.padding == 4

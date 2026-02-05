@@ -4,8 +4,8 @@ from pathlib import Path
 
 from keymap_align.align import align_keymap_with_layout
 from keymap_align.config import find_config_file
+from keymap_align.config import get_align_config
 from keymap_align.config import load_config
-from keymap_align.config import resolve_config_layout
 from keymap_align.layout_resolver import get_bundled_layout_names
 from keymap_align.layout_resolver import resolve_layout
 
@@ -67,15 +67,24 @@ Examples:
         except Exception as e:
             print(f'Warning: Failed to load config from {config_path}: {e}', file=sys.stderr)
 
-    # Resolve layout
-    config_layout = resolve_config_layout(config, config_path) if config_path else None
+    # Get alignment config (layout, indent_size, padding)
+    align_config = get_align_config(config, config_path)
+
+    # Resolve layout (CLI args take precedence over config)
     try:
-        layout_path = resolve_layout(args.layout, args.layout_file, config_layout)
+        layout_path = resolve_layout(args.layout, args.layout_file, align_config.layout)
     except ValueError as e:
         print(f'Error: {e}', file=sys.stderr)
         return 1
 
-    success = align_keymap_with_layout(args.keymap, layout_path, args.output, args.debug)
+    success = align_keymap_with_layout(
+        args.keymap,
+        layout_path,
+        args.output,
+        args.debug,
+        indent_size=align_config.indent_size,
+        padding=align_config.padding,
+    )
     sys.exit(0 if success else 1)
 
 

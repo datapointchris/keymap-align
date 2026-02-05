@@ -2,7 +2,21 @@
 
 import subprocess  # nosec B404
 import tomllib
+from dataclasses import dataclass
 from pathlib import Path
+
+# Default configuration values
+DEFAULT_INDENT_SIZE = 4
+DEFAULT_PADDING = 2
+
+
+@dataclass
+class AlignConfig:
+    """Configuration for keymap alignment."""
+
+    layout: str | None = None
+    indent_size: int = DEFAULT_INDENT_SIZE
+    padding: int = DEFAULT_PADDING
 
 
 def _get_git_root(start_path: Path) -> Path | None:
@@ -98,3 +112,24 @@ def resolve_config_layout(config: dict, config_path: Path) -> str | None:
 
     # It's a bundled layout name - return as-is
     return layout
+
+
+def get_align_config(config: dict, config_path: Path | None) -> AlignConfig:
+    """Build AlignConfig from parsed config dictionary.
+
+    Args:
+        config: Parsed config dictionary
+        config_path: Path to the config file (for resolving relative paths)
+
+    Returns:
+        AlignConfig with values from config or defaults
+    """
+    layout = resolve_config_layout(config, config_path) if config_path else config.get('layout')
+    indent_size = config.get('indent_size', DEFAULT_INDENT_SIZE)
+    padding = config.get('padding', DEFAULT_PADDING)
+
+    return AlignConfig(
+        layout=layout,
+        indent_size=indent_size,
+        padding=padding,
+    )
