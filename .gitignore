@@ -54,3 +54,4 @@ docs/_build/
 .cache/
 .planning/
 .claude/
+.planning
