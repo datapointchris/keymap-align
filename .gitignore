@@ -52,6 +52,5 @@ docs/_build/
 *.log
 *.tmp
 .cache/
-.planning/
 .claude/
 .planning
