@@ -28,7 +28,7 @@ keymap-align = "keymap_align.cli:app"
 dev = [
     "bandit>=1.7.8",
     "mypy>=1.10.0",
-    "ruff>=0.7.0",
+    "ruff==0.12.5",
     "pre-commit>=4.3.0",
 ]
 test = [
@@ -154,6 +154,9 @@ managed = [
     ["pytest", "ini_options", "minversion"],
     ["pytest", "ini_options", "testpaths"],
 ]
+# Dependencies held at the version the pre-commit hook runs, in every group
+# and extra that names them, so a local run and CI cannot disagree.
+pinned = ["ruff"]
 
 [build-system]
 requires = ["uv_build>=0.9.13,<0.10.0"]
