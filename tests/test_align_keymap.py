@@ -4,19 +4,21 @@ Comprehensive tests for keymap_align package using pytest.
 
 import filecmp
 import json
+import shutil
 import subprocess
-import tempfile
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
 from keymap_align.align import align_keymap_with_layout
 from keymap_align.align import build_layer_structure
 from keymap_align.align import calculate_column_widths
 from keymap_align.align import extract_all_layers
 from keymap_align.align import extract_bindings_from_content
-from keymap_align.align import format_layer
+from keymap_align.align import format_binding_rows
 from keymap_align.align import load_layout
+from keymap_align.cli import app
 
 # Consolidated fixtures for cleaner code
 TEST_BASE_DIR = Path(__file__).parent
@@ -28,14 +30,6 @@ def get_test_file(relative_path: str) -> Path:
     if not file_path.exists():
         pytest.skip(f'Test file not found: {relative_path}')
     return file_path
-
-
-@pytest.fixture
-def temp_dir():
-    """Create a temporary directory for test files."""
-    temp_path = Path(tempfile.mkdtemp())
-    yield temp_path
-    # Cleanup is automatic with tempdir
 
 
 @pytest.fixture
@@ -61,9 +55,9 @@ def sample_layout():
 
 
 @pytest.fixture
-def sample_layout_file(temp_dir, sample_layout):
+def sample_layout_file(tmp_path, sample_layout):
     """Sample layout file for testing."""
-    layout_file = temp_dir / 'test_layout.json'
+    layout_file = tmp_path / 'test_layout.json'
     with open(layout_file, 'w') as f:
         json.dump(sample_layout, f)
     return layout_file
@@ -101,9 +95,9 @@ def sample_keymap_content():
 
 
 @pytest.fixture
-def sample_keymap_file(temp_dir, sample_keymap_content):
+def sample_keymap_file(tmp_path, sample_keymap_content):
     """Sample keymap file for testing."""
-    keymap_file = temp_dir / 'test_keymap.keymap'
+    keymap_file = tmp_path / 'test_keymap.keymap'
     keymap_file.write_text(sample_keymap_content)
     return keymap_file
 
@@ -120,11 +114,11 @@ class TestLayoutLoading:
         assert len(result['layout']) == 3
         assert len(result['layout'][0]) == 4
 
-    def test_layout_without_rows_columns_fields(self, temp_dir):
+    def test_layout_without_rows_columns_fields(self, tmp_path):
         """Test that the script works with layout files that don't have separate rows/columns fields"""
         layout_data = {'name': 'Modern Layout', 'layout': [['X', 'X', '-'], ['X', 'X', 'X']]}
 
-        layout_file = temp_dir / 'modern_layout.json'
+        layout_file = tmp_path / 'modern_layout.json'
         with open(layout_file, 'w') as f:
             json.dump(layout_data, f)
 
@@ -156,6 +150,20 @@ class TestBindingExtraction:
         result = extract_bindings_from_content(content)
         expected = ['&kp Q', '&ltl MOUSE W', '&kp E', '&hmr RALT K', '&caps_word', '&trans']
         assert result == expected
+
+    def test_a_name_defined_as_a_binding_is_a_binding_of_its_own(self):
+        content = '&kp A XXX &kp B ___ &lt 1 SPACE XXX'
+        result = extract_bindings_from_content(content, frozenset({'XXX', '___'}))
+        assert result == ['&kp A', 'XXX', '&kp B', '___', '&lt 1 SPACE', 'XXX']
+
+    def test_a_layer_reads_the_names_its_file_defines_as_bindings(self):
+        keymap = (
+            '#define XXX &none\n'
+            '// #define A &kp\n'
+            '/ {\n    keymap {\n        compatible = "zmk,keymap";\n'
+            '        base { bindings = <&kp Q XXX &kp E &kp A XXX &kp D>; };\n    };\n};\n'
+        )
+        assert extract_all_layers(keymap)['base']['bindings'] == ['&kp Q', 'XXX', '&kp E', '&kp A', 'XXX', '&kp D']
 
     def test_extract_bindings_with_comments(self):
         """Test binding extraction with comments."""
@@ -391,89 +399,35 @@ class TestLayerStructureBuilding:
         assert layer_structure[1] == ['&kp D', '&kp E', '&kp F']
 
 
-class TestLayerFormatting:
-    """Tests for layer formatting functionality."""
+class TestRowFormatting:
+    """Tests for rendering one layer's grid as text rows."""
 
-    def test_format_layer_basic(self):
-        """Test basic layer formatting."""
-        layer_data = {'rows': [['&kp A', '&kp B', '&kp C'], ['&kp D', '&kp E', '&kp F']], 'display_name': None}
-        column_widths = [8, 8, 8]  # Fixed widths for consistent formatting
+    def test_pads_each_cell_to_its_column_width(self):
+        rows = [['&hml LCTRL A', '&hmr RALT B', '&lt 1 SPACE'], ['&hml LGUI TAB', '&caps_word', '&trans']]
 
-        formatted = format_layer('BASE', layer_data, column_widths)
+        assert format_binding_rows(rows, [16, 12, 14]) == [
+            '    &hml LCTRL A    &hmr RALT B &lt 1 SPACE',
+            '    &hml LGUI TAB   &caps_word  &trans',
+        ]
 
-        # Should return formatted string
-        assert isinstance(formatted, str)
+    def test_leaves_a_blank_cell_for_a_gap(self):
+        rows = [['&kp A', '&kp B', '&kp C'], [None, '&kp D', None]]
 
-        # Should contain the layer name and bindings
-        assert 'BASE' in formatted
-        assert '&kp A' in formatted
-        assert '&kp B' in formatted
-        assert '&kp C' in formatted
+        assert format_binding_rows(rows, [8, 8, 8]) == [
+            '    &kp A   &kp B   &kp C',
+            '            &kp D',
+        ]
 
-        # Should be properly formatted with ZMK syntax
-        lines = formatted.strip().split('\n')
-        assert len(lines) >= 4  # Header, bindings start, rows, footer
-
-        # Should have proper ZMK layer structure
-        assert 'BASE {' in formatted
-        assert 'bindings = <' in formatted
-        assert '>;' in formatted
-
-    def test_format_layer_with_none_values(self):
-        """Test layer formatting with None values (missing keys)."""
-        layer_data = {
-            'rows': [
-                ['&kp A', '&kp B', '&kp C'],
-                [None, '&kp D', None],  # Missing first and last keys
-            ],
-            'display_name': None,
-        }
-        column_widths = [8, 8, 8]
-
-        formatted = format_layer('LAYER2', layer_data, column_widths)
-
-        assert isinstance(formatted, str)
-
-        # Should handle None values appropriately
-        assert 'LAYER2' in formatted
-        assert '&kp D' in formatted
-
-        # Should have proper ZMK structure
-        assert 'bindings = <' in formatted
-        assert '>;' in formatted
-
-    def test_format_layer_complex_bindings(self):
-        """Test layer formatting with complex multi-parameter bindings."""
-        layer_data = {
-            'rows': [['&hml LCTRL A', '&hmr RALT B', '&lt 1 SPACE'], ['&hml LGUI TAB', '&caps_word', '&trans']],
-            'display_name': None,
-        }
-        column_widths = [16, 12, 14]  # Adequate widths for complex bindings
-
-        formatted = format_layer('COMPLEX', layer_data, column_widths)
-
-        assert isinstance(formatted, str)
-
-        # Should contain all complex bindings and layer name
-        assert 'COMPLEX' in formatted
-        assert '&hml LCTRL A' in formatted
-        assert '&hmr RALT B' in formatted
-        assert '&lt 1 SPACE' in formatted
-        assert '&hml LGUI TAB' in formatted
-        assert '&caps_word' in formatted
-        assert '&trans' in formatted
-
-        # Should have proper ZMK structure
-        assert 'bindings = <' in formatted
-        assert '>;' in formatted
+    def test_indents_each_row_by_indent_size(self):
+        assert format_binding_rows([['&kp A']], [7], indent_size=2) == ['  &kp A']
 
 
 class TestAlignment:
     """Tests for alignment functionality."""
 
-    def test_full_alignment_workflow(self, sample_keymap_file, sample_layout_file, temp_dir):
+    def test_full_alignment_workflow(self, sample_keymap_file, sample_layout_file, tmp_path):
         """Test the complete alignment workflow from input to output."""
-        output_file = temp_dir / 'aligned_output.keymap'
+        output_file = tmp_path / 'aligned_output.keymap'
 
         # Run alignment
         success = align_keymap_with_layout(str(sample_keymap_file), str(sample_layout_file), str(output_file))
@@ -585,24 +539,24 @@ class TestExactMatching:
 class TestErrorHandling:
     """Tests for error handling and edge cases."""
 
-    def test_missing_files(self, temp_dir):
+    def test_missing_files(self, tmp_path):
         """Test handling of missing input files."""
         nonexistent_keymap = 'nonexistent.keymap'
         nonexistent_layout = 'nonexistent.json'
-        output_file = temp_dir / 'output.keymap'
+        output_file = tmp_path / 'output.keymap'
 
         # Should handle missing files gracefully
         success = align_keymap_with_layout(nonexistent_keymap, nonexistent_layout, str(output_file))
         assert not success  # Should fail gracefully
 
-    def test_malformed_json(self, temp_dir):
+    def test_malformed_json(self, tmp_path):
         """Test handling of malformed JSON layout file."""
         # Create malformed JSON file
-        bad_layout_file = temp_dir / 'bad_layout.json'
+        bad_layout_file = tmp_path / 'bad_layout.json'
         bad_layout_file.write_text('{ invalid json')
 
-        output_file = temp_dir / 'output.keymap'
-        keymap_file = temp_dir / 'test.keymap'
+        output_file = tmp_path / 'output.keymap'
+        keymap_file = tmp_path / 'test.keymap'
 
         # Create minimal keymap
         keymap_file.write_text('/ { keymap { BASE { bindings = < &kp A >; }; }; };')
@@ -611,26 +565,94 @@ class TestErrorHandling:
         success = align_keymap_with_layout(str(keymap_file), str(bad_layout_file), str(output_file))
         assert not success  # Should fail gracefully
 
-    def test_excess_bindings_handling(self):
-        """Test handling of keymap with too many bindings."""
-        excess_file = get_test_file('test_keymaps/misaligned/glove80_input_excess_bindings.keymap')
+    def test_excess_bindings_exit_nonzero_and_write_nothing(self, tmp_path):
+        keymap = tmp_path / 'excess.keymap'
+        shutil.copy(get_test_file('test_keymaps/misaligned/glove80_input_excess_bindings.keymap'), keymap)
         layout_file = get_test_file('layouts/glove80_80key_layout.json')
+        before = keymap.read_bytes()
 
-        # Should handle gracefully (specific behavior depends on implementation)
-        layout = load_layout(str(layout_file))
-        assert layout is not None, 'Layout should load successfully'
+        result = CliRunner().invoke(app, ['-k', str(keymap), '-l', str(layout_file)])
 
-        content = excess_file.read_text()
-        layers = extract_all_layers(content)
-        assert len(layers) > 0
+        assert result.exit_code == 1
+        assert "layer 'EXTRA_BINDINGS' holds 83 bindings, but the layout has 80 keys" in result.output
+        assert keymap.read_bytes() == before
+
+    @pytest.mark.parametrize(
+        ('layers', 'message'),
+        [
+            pytest.param(
+                'base {\n    bindings = <\n        &kp A &kp B &kp C  // top row\n        &kp D &kp E &kp F\n    >;\n};',
+                "layer 'base' holds '//' on line 6 inside its bindings, which realigning would drop",
+                id='comment inside bindings',
+            ),
+            pytest.param(
+                'base { bindings = <&kp A &kp B &kp C &kp D &kp E &kp F>; };\nbase { bindings = <&kp G &kp H &kp I &kp J &kp K &kp L>; };',
+                'more than one layer node is named base',
+                id='two layers with one name',
+            ),
+            pytest.param(
+                'base { bindings = <&kp A &kp B &kp C>, <&kp D &kp E &kp F>; };',
+                "layer 'base' continues its bindings past the '>' on line 4",
+                id='bindings in two arrays',
+            ),
+        ],
+    )
+    def test_keymap_that_would_lose_text_is_refused(self, tmp_path, capsys, layers, message):
+        keymap = tmp_path / 'refused.keymap'
+        keymap.write_text(f'/ {{\n    keymap {{\n        compatible = "zmk,keymap";\n{layers}\n    }};\n}};\n')
+        before = keymap.read_bytes()
+
+        assert not align_keymap_with_layout(str(keymap), str(get_test_file('layouts/corne_6key_simple_layout.json')))
+        assert message in capsys.readouterr().err
+        assert keymap.read_bytes() == before
+
+    def test_errors_go_to_stderr(self, tmp_path, capsys):
+        keymap = tmp_path / 'no-keymap-node.keymap'
+        keymap.write_text('/ { };\n')
+
+        assert not align_keymap_with_layout(str(keymap), str(get_test_file('layouts/corne_6key_simple_layout.json')))
+        captured = capsys.readouterr()
+        assert "Error: no 'keymap {' node found" in captured.err
+        assert 'Error' not in captured.out
+
+
+class TestNodeContentSurvives:
+    """A run rewrites only the inside of each bindings array and keeps every other byte of the keymap node."""
+
+    INPUT = 'test_keymaps/misaligned/corne_6key_input_comments_and_properties.keymap'
+    REFERENCE = 'test_keymaps/correct/corne_6key_reference_comments_and_properties.keymap'
+    LAYOUT = 'layouts/corne_6key_simple_layout.json'
+
+    @pytest.fixture
+    def aligned(self, tmp_path):
+        output = tmp_path / 'aligned.keymap'
+        assert align_keymap_with_layout(str(get_test_file(self.INPUT)), str(get_test_file(self.LAYOUT)), str(output))
+        return output.read_text()
+
+    def test_matches_reference(self, aligned):
+        assert aligned == get_test_file(self.REFERENCE).read_text()
+
+    @pytest.mark.parametrize(
+        'line',
+        [
+            pytest.param('        // Letters on the base layer.\n', id='comment between layers'),
+            pytest.param('        // gaming {\n', id='commented-out layer'),
+            pytest.param('            sensor-bindings = <&inc_dec_kp C_VOL_UP C_VOL_DN>;\n', id='property after bindings'),
+            pytest.param('            label = "NUM";\n', id='property before bindings'),
+            pytest.param('        nav-layer {\n', id='hyphenated node name'),
+        ],
+    )
+    def test_line_survives(self, aligned, line):
+        assert line in aligned
 
 
 class TestScriptExecution:
     """Tests for direct script execution."""
 
-    def test_cli_execution(self):
+    def test_cli_execution(self, tmp_path):
         """Test that the CLI executes successfully with basic parameters"""
-        badly_aligned_file = get_test_file('test_keymaps/misaligned/glove80_input_badly_aligned.keymap')
+        keymap = tmp_path / 'glove80.keymap'
+        shutil.copy(get_test_file('test_keymaps/misaligned/glove80_input_badly_aligned.keymap'), keymap)
         layout_file = get_test_file('layouts/glove80_80key_layout.json')
 
         # Test help command
@@ -639,7 +661,7 @@ class TestScriptExecution:
         assert 'usage:' in result.stdout.lower()
 
         # Test normal execution
-        result = subprocess.run(['keymap-align', '-k', str(badly_aligned_file), '-l', str(layout_file)], capture_output=True, text=True)
+        result = subprocess.run(['keymap-align', '-k', str(keymap), '-l', str(layout_file)], capture_output=True, text=True)
 
         assert result.returncode == 0, f'CLI execution should succeed. stderr: {result.stderr}'
         assert 'Alignment completed successfully!' in result.stdout

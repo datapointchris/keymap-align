@@ -4,29 +4,43 @@ A CLI that rewrites a ZMK `.keymap` file so each layer's bindings sit in columns
 keyboard's physical shape. A JSON layout marks each grid cell as a key (`"X"`) or a gap (`"-"`),
 and that grid is all the tool knows about the board.
 
-## The rewrite regenerates the whole `keymap` node and keeps only what it parsed
+## A run rewrites only the inside of each `bindings` array
 
-`align_keymap_with_layout` (`align.py`) replaces everything from the first line containing
-`keymap {` through its matching close brace. It rebuilds that span from what `extract_all_layers`
-captured for each layer: the node name, an optional `display-name`, and the bindings. Lines outside
-the span are kept unchanged. Inside it, a run drops the following and still exits 0 with a success
-message:
+`find_layers` (`align.py`) reads the `keymap` node and each child node holding a
+`bindings = < … >` property. It searches a copy of the file with every comment and string blanked
+to spaces. Offsets in the copy match the original, and a brace or `<` inside a comment or a
+`display-name` is not structure. A node name is whatever precedes its `{`, minus any label, so
+`nav-layer` keeps its hyphen.
 
-- comments and blank lines between layers;
-- any property after `bindings`, such as `sensor-bindings`;
-- a whole layer whose node holds a property other than `display-name` before `bindings`;
-- bindings beyond the layout's key count. A layer with too few gets a blank cell for each one
-  missing.
+`realign_bindings` replaces only the text between each array's `<` and `>`. Every other byte of the
+file is kept: comments, blank lines, node names, `display-name`, and properties such as
+`sensor-bindings`. `tests/test_keymaps/misaligned/corne_6key_input_comments_and_properties.keymap`
+holds each of those beside the layers.
 
-A layer node name is matched as `\w+`, so `nav-layer` is written back as `layer`. The test fixtures
-hold nothing in the node but layers, so no test catches a loss there.
+Before anything is written, each array's whitespace-separated tokens are compared with those of
+its realigned rows. A token the rows would not reproduce is an error, and the run writes nothing.
+That catches a comment inside an array, an undefined macro name before the first `&`, and a parameter past a
+multi-parameter behavior's count. The run also refuses, and writes nothing, when:
 
-## A binding ends at the next `&`, so a behavior-valued parameter must be declared
+- a layer holds more bindings than the layout has keys;
+- two layer nodes share a name, because the layers are keyed by name;
+- a `bindings` property holds more than one `< >` array.
+
+A layer with too few bindings gets a blank cell for each one missing. `--debug` prints its grids
+and then runs the same checks, so it exits 1 wherever a real run would.
+
+## A binding ends where the next one starts, so a behavior-valued parameter must be declared
 
 ZMK's `bindings = < … >` is a flat token list. Nothing separates one binding from the next, so the
 tokenizer starts a new binding at each token beginning with `&`. A parameter that is itself a
 behavior, as in `&hmr &caps_word RALT`, would become its own binding. Every later binding in the
 layer would then shift one key along.
+
+A name the keymap file `#define`s to a binding, such as `#define XXX &none`, also starts one.
+`find_layers` collects those names from the file before it reads any layer. Without them,
+`&kp A XXX` is one binding with two parameters, and every later binding shifts one key back. A
+name defined in an included file is not seen. The file does not carry the include path its build
+resolves against. So such a name still reads as a parameter, and nothing reports it.
 
 `MULTI_PARAM_BEHAVIORS` names the behaviors whose parameters may be behaviors. Inside
 `_handle_multi_param_behavior`, `behavior_param_rules` holds each one's parameter count, and a
@@ -39,9 +53,10 @@ own hold-tap takes a behavior parameter under another name misparses without an 
 ## Column widths are shared by every layer
 
 Each column's width is its widest binding across all layers, plus `padding`. A key therefore sits
-in the same column on every layer. Binding rows are indented one level, shallower than the
-`bindings = <` line above them, because a wide board's rows are long already. Every indent is a
-multiple of `indent_size`.
+in the same column on every layer. Binding rows are indented `indent_size` spaces, shallower than
+the `bindings = <` line above them, because a wide board's rows are long already. The closing `>`
+goes on its own line at the indentation of the line holding `bindings`. No other line is
+reindented.
 
 ## The layout is found from the keymap's directory, not the working directory
 
@@ -62,10 +77,12 @@ conform.nvim pass nothing but `-k`, from whatever directory the editor runs in.
 
 Each JSON file in `src/keymap_align/layouts/` is one board, named by its file stem. `--layout` and
 `--list-layouts` read that directory through `importlib.resources`, so adding a file adds a board.
+`resolve_layout` returns a context manager rather than a path. A package imported from a zip has
+no layout file on disk, so the path is a temporary copy that exists only inside the `with` block.
 The aligner reads `layout`, and reads `name` only for `--debug`. The `key_positions` grid in the
 bundled files is read by nothing.
 
-## The golden tests compare bytes, and the suite rewrites one of their inputs
+## The golden tests compare bytes, and one input is already aligned
 
 - pytest is in the `test` dependency group, which a plain `uv sync` leaves out.
   `uv sync --all-groups` installs it. CI supplies it with `uv run --with pytest`.
@@ -73,11 +90,12 @@ bundled files is read by nothing.
   default `indent_size` and `padding`. A change to either default, or to any output formatting,
   means regenerating those references. Test output lands in the gitignored
   `tests/test_keymaps/test_output/`, which is where to diff a failing match.
-- `test_cli_execution` aligns `misaligned/glove80_input_badly_aligned.keymap` in place, with no
-  `-o`. That input is therefore identical to its reference, and the exact-match test on it checks
-  only that aligned input stays unchanged. After a formatting change, the next test run rewrites
-  it, and the diff looks like a fixture update. `glove80_input_cramped_no_spacing.keymap` is the
-  input the suite actually realigns.
+- `misaligned/glove80_input_badly_aligned.keymap` is byte-identical to its reference, so the
+  exact-match test on it checks only that aligned input stays unchanged.
+  `glove80_input_cramped_no_spacing.keymap` and `corne_6key_input_comments_and_properties.keymap`
+  are the inputs the suite actually realigns.
+- `test_cli_execution` aligns a copy of its input in `tmp_path`, with no `-o`. No test writes to a
+  fixture.
 - `test_cli_execution` runs whichever `keymap-align` is first on `PATH`. Under `uv run` that is
   this checkout. Run any other way, it can be an installed release.
 - `get_test_file` skips a test whose fixture is missing, so a renamed fixture turns its tests into

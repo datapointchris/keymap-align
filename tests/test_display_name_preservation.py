@@ -1,11 +1,12 @@
 """Tests for display-name preservation in keymap_align."""
 
+import json
+
 import pytest
 
+from keymap_align.align import align_keymap_with_layout
 from keymap_align.align import build_layer_structure
-from keymap_align.align import calculate_column_widths
 from keymap_align.align import extract_all_layers
-from keymap_align.align import format_layer
 
 
 class TestDisplayNamePreservation:
@@ -111,24 +112,6 @@ class TestDisplayNamePreservation:
         no_display_structure = structured['LAYER_NO_DISPLAY']
         assert no_display_structure['display_name'] is None
 
-    def test_format_layer_includes_display_names(self, keymap_with_display_names, simple_layout):
-        """Test that format_layer includes display-name in output."""
-        layers = extract_all_layers(keymap_with_display_names)
-        structured = build_layer_structure(layers, simple_layout)
-        column_widths = calculate_column_widths(structured, simple_layout)
-
-        # Test layer with display-name
-        base_formatted = format_layer('BASE', structured['BASE'], column_widths)
-        assert 'display-name = "BASE";' in base_formatted
-        assert 'BASE {' in base_formatted
-        assert 'bindings = <' in base_formatted
-
-        # Test layer without display-name
-        no_display_formatted = format_layer('LAYER_NO_DISPLAY', structured['LAYER_NO_DISPLAY'], column_widths)
-        assert 'display-name' not in no_display_formatted
-        assert 'LAYER_NO_DISPLAY {' in no_display_formatted
-        assert 'bindings = <' in no_display_formatted
-
     def test_display_name_with_special_characters(self):
         """Test display-name with special characters and spaces."""
         keymap_content = """
@@ -213,28 +196,16 @@ class TestDisplayNamePreservation:
         assert layers['LAYER_2']['display_name'] is None
         assert layers['LAYER_3']['display_name'] == 'Third'
 
-    def test_full_workflow_preserves_display_names(self, keymap_with_display_names, simple_layout):
-        """Test that the full alignment workflow preserves display-name properties."""
-        # Extract layers
-        layers = extract_all_layers(keymap_with_display_names)
+    def test_alignment_keeps_each_display_name_line(self, keymap_with_display_names, simple_layout, tmp_path):
+        """Aligning leaves each display-name line where it was, and adds none."""
+        keymap = tmp_path / 'display_names.keymap'
+        keymap.write_text(keymap_with_display_names)
+        layout = tmp_path / 'layout.json'
+        layout.write_text(json.dumps(simple_layout))
 
-        # Build structure
-        structured = build_layer_structure(layers, simple_layout)
+        assert align_keymap_with_layout(str(keymap), str(layout))
 
-        # Calculate widths
-        column_widths = calculate_column_widths(structured, simple_layout)
-
-        # Format each layer
-        formatted_layers = {}
-        for layer_name, layer_data in structured.items():
-            formatted_layers[layer_name] = format_layer(layer_name, layer_data, column_widths)
-
-        # Verify display-names are preserved
-        assert 'display-name = "BASE";' in formatted_layers['BASE']
-        assert 'display-name = "DEV";' in formatted_layers['DEV']
-        assert 'display-name' not in formatted_layers['LAYER_NO_DISPLAY']
-
-        # Verify bindings are still present
-        for layer_formatted in formatted_layers.values():
-            assert 'bindings = <' in layer_formatted
-            assert '>;' in layer_formatted
+        aligned = keymap.read_text()
+        assert '            display-name = "BASE";\n' in aligned
+        assert '            display-name = "DEV";\n' in aligned
+        assert aligned.count('display-name') == 2

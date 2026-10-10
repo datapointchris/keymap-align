@@ -1,0 +1,35 @@
+#include <behaviors.dtsi>
+#include <dt-bindings/zmk/keys.h>
+
+/ {
+    keymap {
+        compatible = "zmk,keymap";
+
+        // Letters on the base layer.
+        base {
+            display-name = "Base";
+            bindings = <
+                &kp A &kp B &kp C
+                &kp D &kp E &kp F
+            >;
+            sensor-bindings = <&inc_dec_kp C_VOL_UP C_VOL_DN>;
+        };
+
+        /* Arrows, held from the base layer. */
+        nav-layer {
+            bindings = <&kp LEFT &kp DOWN &kp UP &kp RIGHT &trans &trans>;
+        };
+
+        // gaming {
+        //     bindings = <&kp W &kp A &kp S &kp D &trans &trans>;
+        // };
+
+        numbers {
+            label = "NUM";
+            bindings = <
+    &kp N1   &kp N2 &kp N3
+      &kp N4 &kp N5   &kp N6
+            >;
+        };
+    };
+};

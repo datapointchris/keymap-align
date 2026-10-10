@@ -1,5 +1,7 @@
 import json
 import re
+import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from keymap_align.config import DEFAULT_INDENT_SIZE
@@ -69,53 +71,31 @@ def get_behavior_color(behavior):
     return Colors.MAGENTA
 
 
-def parse_layer_for_debug(formatted_layer):
-    lines = formatted_layer.split('\n')
-    clean_lines = []
-    in_bindings = False
-    layer_name = None
-    for line in lines:
-        if '{' in line and not line.strip().startswith('bindings'):
-            layer_name = line.split('{')[0].strip()
-            break
-
-    for line in lines:
-        if 'bindings = <' in line:
-            in_bindings = True
-            continue
-        elif '>; ' in line or line.strip().endswith('>;'):
-            in_bindings = False
-            break
-        elif in_bindings and line.strip():
-            clean_lines.append(line.strip())
-
-    return layer_name, '\n'.join(clean_lines)
-
-
-def extract_bindings_from_content(bindings_content):
+def extract_bindings_from_content(bindings_content, binding_macros=frozenset()):
+    """Split a bindings array's text into bindings, each starting at an `&behavior` or a name in `binding_macros`."""
     if not bindings_content:
         return []
 
     content = re.sub(r'//.*$', '', bindings_content, flags=re.MULTILINE)
     content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
     tokens = [token.rstrip('>;') for token in content.split() if token.rstrip('>;')]
-    return _parse_tokens_into_bindings(tokens)
+    return _parse_tokens_into_bindings(tokens, binding_macros)
 
 
-def _parse_tokens_into_bindings(tokens):
+def _parse_tokens_into_bindings(tokens, binding_macros):
     bindings = []
     i = 0
 
     while i < len(tokens):
-        if tokens[i].startswith('&'):
+        if tokens[i].startswith('&') or tokens[i] in binding_macros:
             binding_parts = [tokens[i]]
             behavior = binding_parts[0].lower()
             i += 1
 
             if behavior in MULTI_PARAM_BEHAVIORS:
-                i = _handle_multi_param_behavior(tokens, i, binding_parts)
+                i = _handle_multi_param_behavior(tokens, i, binding_parts, binding_macros)
             else:
-                i = _handle_standard_behavior(tokens, i, binding_parts)
+                i = _handle_standard_behavior(tokens, i, binding_parts, binding_macros)
 
             bindings.append(' '.join(binding_parts))
         else:
@@ -124,7 +104,7 @@ def _parse_tokens_into_bindings(tokens):
     return bindings
 
 
-def _handle_multi_param_behavior(tokens, i, binding_parts):
+def _handle_multi_param_behavior(tokens, i, binding_parts, binding_macros):
     """Handle behaviors that can take multiple parameters including behavior parameters."""
     behavior = binding_parts[0].lower()
     param_count = 0
@@ -144,6 +124,8 @@ def _handle_multi_param_behavior(tokens, i, binding_parts):
     max_params = max(behavior_param_rules.get(behavior, [2]))  # Default to 2 if not specified
 
     while i < len(tokens) and param_count < max_params:
+        if tokens[i] in binding_macros:
+            break
         if tokens[i].startswith('&'):
             # For behaviors like &hmr, &hml, &hmrt, &hmlt, a behavior can be the second parameter
             if param_count == 0 or (param_count == 1 and behavior in ('&hmr', '&hml', '&hmrt', '&hmlt')):
@@ -167,29 +149,184 @@ def _handle_multi_param_behavior(tokens, i, binding_parts):
     return i
 
 
-def _handle_standard_behavior(tokens, i, binding_parts):
+def _handle_standard_behavior(tokens, i, binding_parts, binding_macros):
     """Handle standard behaviors with simple parameters."""
-    # Collect parameters until we hit another behavior or run out
-    while i < len(tokens) and not tokens[i].startswith('&'):
+    # Collect parameters until the next binding starts or the tokens run out
+    while i < len(tokens) and not tokens[i].startswith('&') and tokens[i] not in binding_macros:
         binding_parts.append(tokens[i])
         i += 1
 
     return i
 
 
-def extract_all_layers(keymap_content):
-    layers = {}
-    # Match layer_name { [optional display-name = "...";] bindings = < content >; }
-    layer_pattern = r'(\w+)\s*\{\s*(?:display-name\s*=\s*\"([^\"]*)\";?\s*)?bindings\s*=\s*<([^>]+)>\s*;'
+class KeymapError(ValueError):
+    """A keymap the aligner cannot rewrite without losing or misplacing text."""
 
-    for match in re.finditer(layer_pattern, keymap_content, re.DOTALL):
-        layer_name = match.group(1)
-        display_name = match.group(2)  # Will be None if no display-name found
-        bindings_content = match.group(3)
-        bindings = extract_bindings_from_content(bindings_content)
-        layers[layer_name] = {'bindings': bindings, 'display_name': display_name}
 
+@dataclass
+class Layer:
+    """A child node of the `keymap` node that holds a `bindings = < … >` array.
+
+    `start` and `end` bound the text between the array's `<` and `>`, which is the only
+    text a rewrite replaces. `indent` is the leading whitespace of the line holding
+    `bindings`, where the rewritten `>` goes.
+    """
+
+    name: str
+    display_name: str | None
+    bindings: list[str]
+    start: int
+    end: int
+    indent: str
+
+
+_COMMENT_OR_STRING = re.compile(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\\n]|\\.)*"', re.DOTALL)
+_KEYMAP_NODE = re.compile(r'(?<![\w,.+@&#-])keymap\s*\{')
+_BINDINGS_PROPERTY = re.compile(r'\s*bindings\s*=\s*<')
+_DISPLAY_NAME_PROPERTY = re.compile(r'\s*display-name\s*=\s*"')
+_BINDING_MACRO = re.compile(r'^[ \t]*#[ \t]*define[ \t]+(\w+)[ \t]+&', re.MULTILINE)
+
+
+def _blank_comments_and_strings(text):
+    """Return `text` with every comment, and every string between its quotes, turned to spaces.
+
+    Newlines stay, so an offset into the result is the same offset into `text`. A brace,
+    `<` or `;` inside a comment or a display-name then reads as nothing.
+    """
+
+    def blank(match):
+        found = match.group(0)
+        if found.startswith('"'):
+            return '"' + re.sub(r'[^\n]', ' ', found[1:-1]) + '"'
+        return re.sub(r'[^\n]', ' ', found)
+
+    return _COMMENT_OR_STRING.sub(blank, text)
+
+
+def _line_number(text, offset):
+    return text.count('\n', 0, offset) + 1
+
+
+def _closing_brace(masked, open_brace):
+    depth = 0
+    for i in range(open_brace, len(masked)):
+        if masked[i] == '{':
+            depth += 1
+        elif masked[i] == '}':
+            depth -= 1
+            if depth == 0:
+                return i
+    raise KeymapError(f'the brace on line {_line_number(masked, open_brace)} is never closed')
+
+
+def _statements(masked, start, end):
+    """Yield `(start, end, body)` for each property and child node directly inside `masked[start:end]`.
+
+    A property runs to its `;`, and its body is None. A child node's statement runs to its
+    opening brace, and its body is the `(start, end)` span between its braces.
+    """
+    statement_start = start
+    i = start
+    while i < end:
+        char = masked[i]
+        if char == '{':
+            close = _closing_brace(masked, i)
+            yield statement_start, i, (i + 1, close)
+            i = statement_start = close + 1
+            continue
+        if char == ';':
+            yield statement_start, i, None
+            statement_start = i + 1
+        i += 1
+
+
+def _closing_angle(masked, open_angle, end):
+    """Find the `>` closing the cell array opened at `open_angle`, skipping any inside parentheses."""
+    depth = 0
+    for i in range(open_angle + 1, end):
+        if masked[i] == '(':
+            depth += 1
+        elif masked[i] == ')':
+            depth -= 1
+        elif masked[i] == '>' and depth == 0:
+            return i
+    raise KeymapError(f'the bindings array opened on line {_line_number(masked, open_angle)} is never closed')
+
+
+def _read_layer(keymap_content, masked, name, body_start, body_end, binding_macros):
+    """Read one child node of `keymap`, or return None when it holds no `bindings` array."""
+    display_name = None
+    array = None
+    for start, end, body in _statements(masked, body_start, body_end):
+        if body is not None:
+            continue
+        statement = masked[start:end]
+        if match := _DISPLAY_NAME_PROPERTY.match(statement):
+            open_quote = start + match.end() - 1
+            close_quote = masked.find('"', open_quote + 1, end)
+            if close_quote != -1:
+                display_name = keymap_content[open_quote + 1 : close_quote]
+        elif match := _BINDINGS_PROPERTY.match(statement):
+            open_angle = start + match.end() - 1
+            close_angle = _closing_angle(masked, open_angle, end)
+            if masked[close_angle + 1 : end].strip():
+                raise KeymapError(
+                    f"layer '{name}' continues its bindings past the '>' on line {_line_number(masked, close_angle)}, "
+                    'and the aligner reads a single < > array'
+                )
+            keyword = start + len(statement) - len(statement.lstrip())
+            array = (open_angle + 1, close_angle, keyword)
+
+    if array is None:
+        return None
+    array_start, array_end, keyword = array
+    line = keymap_content[keymap_content.rfind('\n', 0, keyword) + 1 : keyword]
+    return Layer(
+        name=name,
+        display_name=display_name,
+        bindings=extract_bindings_from_content(keymap_content[array_start:array_end], binding_macros),
+        start=array_start,
+        end=array_end,
+        indent=line[: len(line) - len(line.lstrip(' \t'))],
+    )
+
+
+def find_layers(keymap_content):
+    """Return each child node of the `keymap` node that holds a `bindings` array, in file order.
+
+    A node name is whatever precedes its opening brace, minus any label, so a name may hold
+    any character devicetree allows. A name the file `#define`s to a binding, such as
+    `XXX` for `&none`, is a binding of its own. Raises KeymapError when there is no `keymap`
+    node, a brace or a `bindings` array is never closed, or a `bindings` property holds more
+    than one array.
+    """
+    masked = _blank_comments_and_strings(keymap_content)
+    binding_macros = frozenset(_BINDING_MACRO.findall(masked))
+    keymap_match = _KEYMAP_NODE.search(masked)
+    if keymap_match is None:
+        raise KeymapError("no 'keymap {' node found")
+    open_brace = keymap_match.end() - 1
+    close_brace = _closing_brace(masked, open_brace)
+
+    layers = []
+    for start, end, body in _statements(masked, open_brace + 1, close_brace):
+        if body is None:
+            continue
+        header = masked[start:end].split()
+        name = header[-1].rsplit(':', 1)[-1] if header else ''
+        layer = _read_layer(keymap_content, masked, name, *body, binding_macros)
+        if layer is not None:
+            layers.append(layer)
     return layers
+
+
+def _layer_data(layers):
+    return {layer.name: {'bindings': layer.bindings, 'display_name': layer.display_name} for layer in layers}
+
+
+def extract_all_layers(keymap_content):
+    """Map each layer's node name to its bindings and display-name."""
+    return _layer_data(find_layers(keymap_content))
 
 
 def load_layout(layout_file):
@@ -198,16 +335,16 @@ def load_layout(layout_file):
             layout = json.load(f)
 
         if 'layout' not in layout:
-            print("Error: Layout file must contain a 'layout' field")
+            print("Error: Layout file must contain a 'layout' field", file=sys.stderr)
             return None
 
         return layout
 
     except FileNotFoundError:
-        print(f"Error: Layout file '{layout_file}' not found.")
+        print(f"Error: Layout file '{layout_file}' not found.", file=sys.stderr)
         return None
     except json.JSONDecodeError as e:
-        print(f"Error: Invalid JSON in layout file '{layout_file}': {e}")
+        print(f"Error: Invalid JSON in layout file '{layout_file}': {e}", file=sys.stderr)
         return None
 
 
@@ -257,44 +394,62 @@ def calculate_column_widths(structured_layers, layout, padding=DEFAULT_PADDING):
     return [width + padding for width in column_widths]
 
 
-def format_layer(layer_name, layer_data, column_widths, indent_size=DEFAULT_INDENT_SIZE):
-    """Format a layer with proper indentation.
+def format_binding_rows(layer_rows, column_widths, indent_size=DEFAULT_INDENT_SIZE):
+    """Render one layer's grid as lines of text, each cell padded to its column's width.
 
-    Args:
-        layer_name: Name of the layer
-        layer_data: Dict with 'rows' and 'display_name'
-        column_widths: List of column widths for alignment
-        indent_size: Number of spaces per indentation level (default 4)
+    Each line starts with `indent_size` spaces. A gap or a missing binding is a blank cell.
     """
-    layer_rows = layer_data['rows']
-    display_name = layer_data['display_name']
-
-    # Indentation levels (all multiples of indent_size)
-    indent_2 = ' ' * (2 * indent_size)  # 8 spaces by default - layer block
-    indent_3 = ' ' * (3 * indent_size)  # 12 spaces by default - bindings declaration
-    indent_binding = ' ' * indent_size  # 4 spaces by default - binding rows (minimal for wide keyboards)
-
-    lines = [f'{indent_2}{layer_name} {{']
-
-    # Add display-name if it exists
-    if display_name:
-        lines.append(f'{indent_3}display-name = "{display_name}";')
-
-    lines.append(f'{indent_3}bindings = <')
-
+    lines = []
     for row in layer_rows:
-        row_content = indent_binding
-
+        row_content = ' ' * indent_size
         for col_idx, binding in enumerate(row):
-            if binding is not None:
-                row_content += binding.ljust(column_widths[col_idx])
-            else:
-                row_content += ' ' * column_widths[col_idx]
-
+            row_content += (binding or '').ljust(column_widths[col_idx])
         lines.append(row_content.rstrip())
+    return lines
 
-    lines.extend([f'{indent_3}>;', f'{indent_2}}};'])
-    return '\n'.join(lines)
+
+def _first_lost_token(original, realigned):
+    """Return the first token of `original`, as a match, that `realigned` does not hold at the same position."""
+    realigned_tokens = realigned.split()
+    for index, token in enumerate(re.finditer(r'\S+', original)):
+        if index >= len(realigned_tokens) or token.group(0) != realigned_tokens[index]:
+            return token
+    return None
+
+
+def realign_bindings(keymap_content, layers, structured_layers, column_widths, layout, indent_size=DEFAULT_INDENT_SIZE):
+    """Return `keymap_content` with the inside of each layer's `bindings` array realigned.
+
+    Only the text between each array's `<` and `>` changes, and the `>` goes on its own line
+    at the indentation of the line holding `bindings`. Raises KeymapError, naming every layer
+    at fault, when a layer holds more bindings than the layout has keys, or when its array
+    holds text the realigned rows would not reproduce, such as a comment.
+    """
+    key_count = sum(1 for row in layout['layout'] for cell in row if cell == 'X')
+    problems = []
+    pieces = []
+    cursor = 0
+    for layer in layers:
+        if len(layer.bindings) > key_count:
+            problems.append(f"layer '{layer.name}' holds {len(layer.bindings)} bindings, but the layout has {key_count} keys")
+            continue
+        rows = format_binding_rows(structured_layers[layer.name]['rows'], column_widths, indent_size)
+        realigned = '\n' + '\n'.join(rows) + '\n' + layer.indent
+        lost = _first_lost_token(keymap_content[layer.start : layer.end], realigned)
+        if lost is not None:
+            problems.append(
+                f"layer '{layer.name}' holds '{lost.group(0)}' on line {_line_number(keymap_content, layer.start + lost.start())} "
+                'inside its bindings, which realigning would drop'
+            )
+            continue
+        pieces.append(keymap_content[cursor : layer.start])
+        pieces.append(realigned)
+        cursor = layer.end
+
+    if problems:
+        raise KeymapError('\n'.join(problems))
+    pieces.append(keymap_content[cursor:])
+    return ''.join(pieces)
 
 
 def visual_debug_print_layout(layout):
@@ -422,11 +577,10 @@ def visual_debug_print_formatted_layers(structured_layers, column_widths, indent
     print('─' * 50)
 
     for layer_name, layer_data in structured_layers.items():
-        formatted_layer = format_layer(layer_name, layer_data, column_widths, indent_size)
-        parsed_name, clean_bindings = parse_layer_for_debug(formatted_layer)
+        rows = format_binding_rows(layer_data['rows'], column_widths, indent_size)
 
-        print(f'\n{Colors.BLUE}{parsed_name}{Colors.RESET}')
-        _print_colored_bindings(clean_bindings)
+        print(f'\n{Colors.BLUE}{layer_name}{Colors.RESET}')
+        _print_colored_bindings('\n'.join(row.strip() for row in rows))
 
 
 def _print_colored_bindings(clean_bindings):
@@ -459,12 +613,15 @@ def align_keymap_with_layout(
 ):
     """Align keymap bindings according to keyboard layout.
 
+    Only the inside of each layer's `bindings` array is rewritten. A keymap that cannot be
+    rewritten without losing text is reported, and nothing is written.
+
     Args:
         keymap_file: Path to the keymap file
         layout_file: Path to the layout JSON file
         output_file: Optional output file path (default: modify in place)
-        debug: Enable debug output
-        indent_size: Number of spaces per indentation level (default 4)
+        debug: Print the layout and each layer's grid; write nothing
+        indent_size: Number of spaces before each binding row (default 4)
         padding: Number of spaces between columns (default 2)
     """
     layout = load_layout(layout_file)
@@ -474,74 +631,47 @@ def align_keymap_with_layout(
     try:
         keymap_content = Path(keymap_file).read_text()
     except FileNotFoundError:
-        print(f"Error: Keymap file '{keymap_file}' not found.")
+        print(f"Error: Keymap file '{keymap_file}' not found.", file=sys.stderr)
         return False
 
-    layers = extract_all_layers(keymap_content)
+    try:
+        layers = find_layers(keymap_content)
+    except KeymapError as e:
+        print(f'Error: {e}', file=sys.stderr)
+        return False
     if not layers:
-        print('Error: No layers found in keymap file.')
+        print('Error: No layers found in keymap file.', file=sys.stderr)
         return False
 
-    print(f'Found layers: {list(layers.keys())}')
-    structured_layers = build_layer_structure(layers, layout)
+    names = [layer.name for layer in layers]
+    duplicates = sorted({name for name in names if names.count(name) > 1})
+    if duplicates:
+        print(f'Error: more than one layer node is named {", ".join(duplicates)}', file=sys.stderr)
+        return False
+
+    print(f'Found layers: {names}')
+    layer_data = _layer_data(layers)
+    structured_layers = build_layer_structure(layer_data, layout)
     column_widths = calculate_column_widths(structured_layers, layout, padding)
 
     if debug:
         visual_debug_print_layout(layout)
-        visual_debug_print_layer_bindings(layers, layout, column_widths)
+        visual_debug_print_layer_bindings(layer_data, layout, column_widths)
         visual_debug_print_formatted_layers(structured_layers, column_widths, indent_size)
+
+    try:
+        output_content = realign_bindings(keymap_content, layers, structured_layers, column_widths, layout, indent_size)
+    except KeymapError as e:
+        for problem in str(e).splitlines():
+            print(f'Error: {problem}', file=sys.stderr)
+        print('Nothing was written.', file=sys.stderr)
+        return False
+
+    if debug:
         return True
 
-    # Parse original file to find keymap section boundaries
-    lines = keymap_content.split('\n')
-    keymap_start_idx = None
-    keymap_end_idx = None
-
-    # Find keymap section start
-    for i, line in enumerate(lines):
-        if 'keymap {' in line:
-            keymap_start_idx = i
-            break
-
-    if keymap_start_idx is None:
-        print("Error: Could not find 'keymap {' in the file.")
-        return False
-
-    # Find keymap section end by counting braces
-    brace_count = 0
-    for i in range(keymap_start_idx, len(lines)):
-        line = lines[i]
-        # Count opening and closing braces
-        brace_count += line.count('{') - line.count('}')
-        if brace_count == 0 and i > keymap_start_idx:
-            keymap_end_idx = i
-            break
-
-    if keymap_end_idx is None:
-        print('Error: Could not find end of keymap section.')
-        return False
-
-    # Extract pre-keymap and post-keymap content
-    pre_keymap_content = '\n'.join(lines[:keymap_start_idx])
-    post_keymap_content = '\n'.join(lines[keymap_end_idx + 1 :])
-
-    # Generate new keymap section content with configurable indentation
-    indent_1 = ' ' * indent_size  # 4 spaces by default
-    indent_2 = ' ' * (2 * indent_size)  # 8 spaces by default
-    keymap_lines = [f'{indent_1}keymap {{', f'{indent_2}compatible = "zmk,keymap";']
-
-    for layer_name, layer_data in structured_layers.items():
-        formatted_layer = format_layer(layer_name, layer_data, column_widths, indent_size)
-        keymap_lines.append(formatted_layer)
-        layer_rows = layer_data['rows']
-        binding_count = sum(1 for row in layer_rows for binding in row if binding is not None)
-        print(f'Formatted {layer_name}: {binding_count} bindings')
-
-    keymap_lines.append(f'{indent_1}}};')
-    keymap_section = '\n'.join(keymap_lines)
-
-    # Combine all parts
-    output_content = pre_keymap_content + '\n' + keymap_section + '\n' + post_keymap_content
+    for layer in layers:
+        print(f'Formatted {layer.name}: {len(layer.bindings)} bindings')
 
     # Determine output destination
     target_file = output_file or keymap_file
@@ -555,7 +685,7 @@ def align_keymap_with_layout(
             print(f'Keymap formatted in place: {keymap_file}')
 
     except OSError as e:
-        print(f"Error writing to file '{target_file}': {e}")
+        print(f"Error writing to file '{target_file}': {e}", file=sys.stderr)
         return False
 
     print(f'Keymap aligned using layout: {layout_file}')
