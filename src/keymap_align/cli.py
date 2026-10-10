@@ -65,7 +65,7 @@ def main(
     ] = None,
     debug: Annotated[
         bool,
-        typer.Option('--debug', help='Show the column maths behind each alignment decision.', rich_help_panel='Output'),
+        typer.Option('--debug', help='Show the column math behind each alignment decision.', rich_help_panel='Output'),
     ] = False,
 ):
     if list_layouts:
@@ -88,19 +88,20 @@ def main(
     align_config = get_align_config(config, config_path)
 
     try:
-        layout_path = resolve_layout(layout, layout_file, align_config.layout)
+        layout_context = resolve_layout(layout, layout_file, align_config.layout)
     except ValueError as e:
         print(f'Error: {e}', file=sys.stderr)
         raise typer.Exit(1) from e
 
-    success = align_keymap_with_layout(
-        keymap,
-        layout_path,
-        output,
-        debug,
-        indent_size=align_config.indent_size,
-        padding=align_config.padding,
-    )
+    with layout_context as layout_path:
+        success = align_keymap_with_layout(
+            keymap,
+            layout_path,
+            output,
+            debug,
+            indent_size=align_config.indent_size,
+            padding=align_config.padding,
+        )
     raise typer.Exit(0 if success else 1)
 
 

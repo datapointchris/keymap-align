@@ -3,6 +3,7 @@
 Handles bundled layouts and layout path resolution.
 """
 
+import contextlib
 import importlib.resources
 from pathlib import Path
 
@@ -14,14 +15,15 @@ def get_bundled_layout_names() -> list[str]:
     return sorted(names)
 
 
-def get_bundled_layout_path(name: str) -> Path:
-    """Return path to bundled layout file.
+def bundled_layout_path(name: str) -> contextlib.AbstractContextManager[Path]:
+    """Return a context manager yielding a filesystem path to a bundled layout.
+
+    The path is valid only inside the `with` block. A package imported from a zip has no
+    file on disk, so `importlib.resources.as_file` writes a temporary copy for the block
+    and deletes it when the block exits.
 
     Args:
         name: Layout name without .json extension (e.g., 'corne42')
-
-    Returns:
-        Path to the bundled layout file
 
     Raises:
         ValueError: If layout name is not found in bundled layouts
@@ -32,10 +34,7 @@ def get_bundled_layout_path(name: str) -> Path:
         available = get_bundled_layout_names()
         raise ValueError(f"Unknown bundled layout '{name}'. Available: {', '.join(available)}")
 
-    # For importlib.resources, we need to get a concrete path
-    # Using as_file context manager for resource access
-    with importlib.resources.as_file(layout_file) as path:
-        return Path(path)
+    return importlib.resources.as_file(layout_file)
 
 
 def _is_file_path(value: str) -> bool:
@@ -47,7 +46,7 @@ def resolve_layout(
     layout_arg: str | None,
     layout_file_arg: str | None,
     config_layout: str | None,
-) -> str:
+) -> contextlib.AbstractContextManager[Path]:
     """Resolve layout to a file path based on precedence rules.
 
     Precedence: --layout-file > --layout > config > error
@@ -61,7 +60,8 @@ def resolve_layout(
         config_layout: Value from config file (bundled name or path)
 
     Returns:
-        Path to the layout file as a string
+        A context manager yielding the layout file's path, which stays valid until the
+        `with` block exits. A bundled layout may be a temporary copy.
 
     Raises:
         ValueError: If no layout specified or layout not found
@@ -69,7 +69,7 @@ def resolve_layout(
     # Determine which value to use based on precedence
     if layout_file_arg is not None:
         # --layout-file is always a file path
-        return layout_file_arg
+        return contextlib.nullcontext(Path(layout_file_arg))
 
     if layout_arg is not None:
         value = layout_arg
@@ -83,6 +83,5 @@ def resolve_layout(
 
     # Resolve the value - either as a path or bundled name
     if _is_file_path(value):
-        return value
-    # Bundled layout name
-    return str(get_bundled_layout_path(value))
+        return contextlib.nullcontext(Path(value))
+    return bundled_layout_path(value)
