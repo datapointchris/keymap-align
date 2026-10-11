@@ -425,7 +425,7 @@ def realign_bindings(keymap_content, layers, structured_layers, column_widths, l
     at fault, when a layer holds more bindings than the layout has keys, or when its array
     holds text the realigned rows would not reproduce, such as a comment.
     """
-    key_count = sum(1 for row in layout['layout'] for cell in row if cell == 'X')
+    key_count = sum(row.count('X') for row in layout['layout'])
     problems = []
     pieces = []
     cursor = 0
