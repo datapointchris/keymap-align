@@ -43,7 +43,7 @@ name defined in an included file is not seen. The file does not carry the includ
 resolves against. So such a name still reads as a parameter, and nothing reports it.
 
 `MULTI_PARAM_BEHAVIORS` names the behaviors whose parameters may be behaviors. Inside
-`_handle_multi_param_behavior`, `behavior_param_rules` holds each one's parameter count, and a
+`handle_multi_param_behavior`, `behavior_param_rules` holds each one's parameter count, and a
 tuple names the ones that take a behavior in second position. The set and both tables describe one
 fact and must agree. The names in them are user-defined hold-taps, not ZMK built-ins. A keymap whose
 own hold-tap takes a behavior parameter under another name misparses without an error.

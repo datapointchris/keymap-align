@@ -19,7 +19,7 @@ class AlignConfig:
     padding: int = DEFAULT_PADDING
 
 
-def _get_git_root(start_path: Path) -> Path | None:
+def get_git_root(start_path: Path) -> Path | None:
     """Get the git repository root for a path, if it exists."""
     try:
         result = subprocess.run(  # nosec B603, B607
@@ -46,7 +46,7 @@ def find_config_file(start_path: Path) -> Path | None:
         Path to config file if found, None otherwise
     """
     start_path = start_path.resolve()
-    git_root = _get_git_root(start_path)
+    git_root = get_git_root(start_path)
 
     current = start_path
     while True:

@@ -79,10 +79,10 @@ def extract_bindings_from_content(bindings_content, binding_macros=frozenset()):
     content = re.sub(r'//.*$', '', bindings_content, flags=re.MULTILINE)
     content = re.sub(r'/\*.*?\*/', '', content, flags=re.DOTALL)
     tokens = [token.rstrip('>;') for token in content.split() if token.rstrip('>;')]
-    return _parse_tokens_into_bindings(tokens, binding_macros)
+    return parse_tokens_into_bindings(tokens, binding_macros)
 
 
-def _parse_tokens_into_bindings(tokens, binding_macros):
+def parse_tokens_into_bindings(tokens, binding_macros):
     bindings = []
     i = 0
 
@@ -93,9 +93,9 @@ def _parse_tokens_into_bindings(tokens, binding_macros):
             i += 1
 
             if behavior in MULTI_PARAM_BEHAVIORS:
-                i = _handle_multi_param_behavior(tokens, i, binding_parts, binding_macros)
+                i = handle_multi_param_behavior(tokens, i, binding_parts, binding_macros)
             else:
-                i = _handle_standard_behavior(tokens, i, binding_parts, binding_macros)
+                i = handle_standard_behavior(tokens, i, binding_parts, binding_macros)
 
             bindings.append(' '.join(binding_parts))
         else:
@@ -104,7 +104,7 @@ def _parse_tokens_into_bindings(tokens, binding_macros):
     return bindings
 
 
-def _handle_multi_param_behavior(tokens, i, binding_parts, binding_macros):
+def handle_multi_param_behavior(tokens, i, binding_parts, binding_macros):
     """Handle behaviors that can take multiple parameters including behavior parameters."""
     behavior = binding_parts[0].lower()
     param_count = 0
@@ -149,7 +149,7 @@ def _handle_multi_param_behavior(tokens, i, binding_parts, binding_macros):
     return i
 
 
-def _handle_standard_behavior(tokens, i, binding_parts, binding_macros):
+def handle_standard_behavior(tokens, i, binding_parts, binding_macros):
     """Handle standard behaviors with simple parameters."""
     # Collect parameters until the next binding starts or the tokens run out
     while i < len(tokens) and not tokens[i].startswith('&') and tokens[i] not in binding_macros:
@@ -180,14 +180,14 @@ class Layer:
     indent: str
 
 
-_COMMENT_OR_STRING = re.compile(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\\n]|\\.)*"', re.DOTALL)
-_KEYMAP_NODE = re.compile(r'(?<![\w,.+@&#-])keymap\s*\{')
-_BINDINGS_PROPERTY = re.compile(r'\s*bindings\s*=\s*<')
-_DISPLAY_NAME_PROPERTY = re.compile(r'\s*display-name\s*=\s*"')
-_BINDING_MACRO = re.compile(r'^[ \t]*#[ \t]*define[ \t]+(\w+)[ \t]+&', re.MULTILINE)
+COMMENT_OR_STRING = re.compile(r'//[^\n]*|/\*.*?\*/|"(?:[^"\\\n]|\\.)*"', re.DOTALL)
+KEYMAP_NODE = re.compile(r'(?<![\w,.+@&#-])keymap\s*\{')
+BINDINGS_PROPERTY = re.compile(r'\s*bindings\s*=\s*<')
+DISPLAY_NAME_PROPERTY = re.compile(r'\s*display-name\s*=\s*"')
+BINDING_MACRO = re.compile(r'^[ \t]*#[ \t]*define[ \t]+(\w+)[ \t]+&', re.MULTILINE)
 
 
-def _blank_comments_and_strings(text):
+def blank_comments_and_strings(text):
     """Return `text` with every comment, and every string between its quotes, turned to spaces.
 
     Newlines stay, so an offset into the result is the same offset into `text`. A brace,
@@ -200,14 +200,14 @@ def _blank_comments_and_strings(text):
             return '"' + re.sub(r'[^\n]', ' ', found[1:-1]) + '"'
         return re.sub(r'[^\n]', ' ', found)
 
-    return _COMMENT_OR_STRING.sub(blank, text)
+    return COMMENT_OR_STRING.sub(blank, text)
 
 
-def _line_number(text, offset):
+def line_number(text, offset):
     return text.count('\n', 0, offset) + 1
 
 
-def _closing_brace(masked, open_brace):
+def closing_brace(masked, open_brace):
     depth = 0
     for i in range(open_brace, len(masked)):
         if masked[i] == '{':
@@ -216,10 +216,10 @@ def _closing_brace(masked, open_brace):
             depth -= 1
             if depth == 0:
                 return i
-    raise KeymapError(f'the brace on line {_line_number(masked, open_brace)} is never closed')
+    raise KeymapError(f'the brace on line {line_number(masked, open_brace)} is never closed')
 
 
-def _statements(masked, start, end):
+def statements(masked, start, end):
     """Yield `(start, end, body)` for each property and child node directly inside `masked[start:end]`.
 
     A property runs to its `;`, and its body is None. A child node's statement runs to its
@@ -230,7 +230,7 @@ def _statements(masked, start, end):
     while i < end:
         char = masked[i]
         if char == '{':
-            close = _closing_brace(masked, i)
+            close = closing_brace(masked, i)
             yield statement_start, i, (i + 1, close)
             i = statement_start = close + 1
             continue
@@ -240,7 +240,7 @@ def _statements(masked, start, end):
         i += 1
 
 
-def _closing_angle(masked, open_angle, end):
+def closing_angle(masked, open_angle, end):
     """Find the `>` closing the cell array opened at `open_angle`, skipping any inside parentheses."""
     depth = 0
     for i in range(open_angle + 1, end):
@@ -250,28 +250,28 @@ def _closing_angle(masked, open_angle, end):
             depth -= 1
         elif masked[i] == '>' and depth == 0:
             return i
-    raise KeymapError(f'the bindings array opened on line {_line_number(masked, open_angle)} is never closed')
+    raise KeymapError(f'the bindings array opened on line {line_number(masked, open_angle)} is never closed')
 
 
-def _read_layer(keymap_content, masked, name, body_start, body_end, binding_macros):
+def read_layer(keymap_content, masked, name, body_start, body_end, binding_macros):
     """Read one child node of `keymap`, or return None when it holds no `bindings` array."""
     display_name = None
     array = None
-    for start, end, body in _statements(masked, body_start, body_end):
+    for start, end, body in statements(masked, body_start, body_end):
         if body is not None:
             continue
         statement = masked[start:end]
-        if match := _DISPLAY_NAME_PROPERTY.match(statement):
+        if match := DISPLAY_NAME_PROPERTY.match(statement):
             open_quote = start + match.end() - 1
             close_quote = masked.find('"', open_quote + 1, end)
             if close_quote != -1:
                 display_name = keymap_content[open_quote + 1 : close_quote]
-        elif match := _BINDINGS_PROPERTY.match(statement):
+        elif match := BINDINGS_PROPERTY.match(statement):
             open_angle = start + match.end() - 1
-            close_angle = _closing_angle(masked, open_angle, end)
+            close_angle = closing_angle(masked, open_angle, end)
             if masked[close_angle + 1 : end].strip():
                 raise KeymapError(
-                    f"layer '{name}' continues its bindings past the '>' on line {_line_number(masked, close_angle)}, "
+                    f"layer '{name}' continues its bindings past the '>' on line {line_number(masked, close_angle)}, "
                     'and the aligner reads a single < > array'
                 )
             keyword = start + len(statement) - len(statement.lstrip())
@@ -300,33 +300,33 @@ def find_layers(keymap_content):
     node, a brace or a `bindings` array is never closed, or a `bindings` property holds more
     than one array.
     """
-    masked = _blank_comments_and_strings(keymap_content)
-    binding_macros = frozenset(_BINDING_MACRO.findall(masked))
-    keymap_match = _KEYMAP_NODE.search(masked)
+    masked = blank_comments_and_strings(keymap_content)
+    binding_macros = frozenset(BINDING_MACRO.findall(masked))
+    keymap_match = KEYMAP_NODE.search(masked)
     if keymap_match is None:
         raise KeymapError("no 'keymap {' node found")
     open_brace = keymap_match.end() - 1
-    close_brace = _closing_brace(masked, open_brace)
+    close_brace = closing_brace(masked, open_brace)
 
     layers = []
-    for start, end, body in _statements(masked, open_brace + 1, close_brace):
+    for start, end, body in statements(masked, open_brace + 1, close_brace):
         if body is None:
             continue
         header = masked[start:end].split()
         name = header[-1].rsplit(':', 1)[-1] if header else ''
-        layer = _read_layer(keymap_content, masked, name, *body, binding_macros)
+        layer = read_layer(keymap_content, masked, name, *body, binding_macros)
         if layer is not None:
             layers.append(layer)
     return layers
 
 
-def _layer_data(layers):
+def layers_by_name(layers):
     return {layer.name: {'bindings': layer.bindings, 'display_name': layer.display_name} for layer in layers}
 
 
 def extract_all_layers(keymap_content):
     """Map each layer's node name to its bindings and display-name."""
-    return _layer_data(find_layers(keymap_content))
+    return layers_by_name(find_layers(keymap_content))
 
 
 def load_layout(layout_file):
@@ -408,7 +408,7 @@ def format_binding_rows(layer_rows, column_widths, indent_size=DEFAULT_INDENT_SI
     return lines
 
 
-def _first_lost_token(original, realigned):
+def first_lost_token(original, realigned):
     """Return the first token of `original`, as a match, that `realigned` does not hold at the same position."""
     realigned_tokens = realigned.split()
     for index, token in enumerate(re.finditer(r'\S+', original)):
@@ -435,10 +435,10 @@ def realign_bindings(keymap_content, layers, structured_layers, column_widths, l
             continue
         rows = format_binding_rows(structured_layers[layer.name]['rows'], column_widths, indent_size)
         realigned = '\n' + '\n'.join(rows) + '\n' + layer.indent
-        lost = _first_lost_token(keymap_content[layer.start : layer.end], realigned)
+        lost = first_lost_token(keymap_content[layer.start : layer.end], realigned)
         if lost is not None:
             problems.append(
-                f"layer '{layer.name}' holds '{lost.group(0)}' on line {_line_number(keymap_content, layer.start + lost.start())} "
+                f"layer '{layer.name}' holds '{lost.group(0)}' on line {line_number(keymap_content, layer.start + lost.start())} "
                 'inside its bindings, which realigning would drop'
             )
             continue
@@ -506,13 +506,13 @@ def visual_debug_print_layer_bindings(layers, layout, column_widths):
         print(f'     Total bindings: {Colors.YELLOW}{len(bindings)}{Colors.RESET}')
 
         # Calculate layer-specific column widths for compact display
-        layer_column_widths = _calculate_layer_column_widths(layout_matrix, bindings)
+        layer_column_widths = calculate_layer_column_widths(layout_matrix, bindings)
 
         # Display the layer with proper visual alignment
-        _print_layer_with_alignment(layout_matrix, bindings, layer_column_widths)
+        print_layer_with_alignment(layout_matrix, bindings, layer_column_widths)
 
 
-def _calculate_layer_column_widths(layout_matrix, bindings):
+def calculate_layer_column_widths(layout_matrix, bindings):
     """Calculate column widths optimized for a single layer."""
     layer_column_widths = [0] * len(layout_matrix[0])
     binding_index = 0
@@ -527,7 +527,7 @@ def _calculate_layer_column_widths(layout_matrix, bindings):
     return layer_column_widths
 
 
-def _print_layer_with_alignment(layout_matrix, bindings, layer_column_widths):
+def print_layer_with_alignment(layout_matrix, bindings, layer_column_widths):
     """Print a single layer with proper visual keyboard alignment."""
     binding_index = 0
 
@@ -540,7 +540,7 @@ def _print_layer_with_alignment(layout_matrix, bindings, layer_column_widths):
             if cell == 'X':
                 if binding_index < len(bindings):
                     binding = bindings[binding_index]
-                    colored_binding = _colorize_binding(binding)
+                    colored_binding = colorize_binding(binding)
                     display_text = f'[{colored_binding}]'
                     # Account for color codes in padding calculation
                     color_len = len(colored_binding) - len(binding)
@@ -558,7 +558,7 @@ def _print_layer_with_alignment(layout_matrix, bindings, layer_column_widths):
         print(f'     Row {row_idx:2d}: ' + ''.join(row_display).rstrip())
 
 
-def _colorize_binding(binding):
+def colorize_binding(binding):
     """Apply appropriate color to a binding for display."""
     if not binding.startswith('&'):
         return binding
@@ -580,10 +580,10 @@ def visual_debug_print_formatted_layers(structured_layers, column_widths, indent
         rows = format_binding_rows(layer_data['rows'], column_widths, indent_size)
 
         print(f'\n{Colors.BLUE}{layer_name}{Colors.RESET}')
-        _print_colored_bindings('\n'.join(row.strip() for row in rows))
+        print_colored_bindings('\n'.join(row.strip() for row in rows))
 
 
-def _print_colored_bindings(clean_bindings):
+def print_colored_bindings(clean_bindings):
     """Print bindings with appropriate coloring applied."""
 
     def replace_behavior(match):
@@ -650,7 +650,7 @@ def align_keymap_with_layout(
         return False
 
     print(f'Found layers: {names}')
-    layer_data = _layer_data(layers)
+    layer_data = layers_by_name(layers)
     structured_layers = build_layer_structure(layer_data, layout)
     column_widths = calculate_column_widths(structured_layers, layout, padding)
 

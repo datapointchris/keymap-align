@@ -37,7 +37,7 @@ def bundled_layout_path(name: str) -> contextlib.AbstractContextManager[Path]:
     return importlib.resources.as_file(layout_file)
 
 
-def _is_file_path(value: str) -> bool:
+def is_file_path(value: str) -> bool:
     """Check if a value looks like a file path rather than a layout name."""
     return '/' in value or '\\' in value or value.endswith('.json')
 
@@ -82,6 +82,6 @@ def resolve_layout(
         )
 
     # Resolve the value - either as a path or bundled name
-    if _is_file_path(value):
+    if is_file_path(value):
         return contextlib.nullcontext(Path(value))
     return bundled_layout_path(value)
