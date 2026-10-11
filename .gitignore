@@ -53,5 +53,4 @@ docs/_build/
 *.tmp
 .cache/
 .claude/
-.planning
 coverage.xml
