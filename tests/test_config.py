@@ -1,5 +1,7 @@
 """Tests for the config module."""
 
+import tomllib
+
 import pytest
 
 from keymap_align.config import DEFAULT_INDENT_SIZE
@@ -77,7 +79,6 @@ class TestLoadConfig:
 
     def test_raises_for_invalid_toml(self, tmp_path):
         """Should raise error for invalid TOML."""
-        import tomllib
 
         config_file = tmp_path / 'keymap_align.toml'
         config_file.write_text('invalid = [missing bracket')
