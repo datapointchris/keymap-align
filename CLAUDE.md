@@ -63,7 +63,7 @@ reindented.
 The layout comes from `--layout-file`, then `--layout`, then the `layout` key of the nearest
 `keymap_align.toml`. The config search starts in the keymap file's directory and walks up to the
 git root, or to the filesystem root outside a repository. That lets an editor formatter such as
-conform.nvim pass nothing but `-k`, from whatever directory the editor runs in.
+conform.nvim pass nothing but `format -k`, from whatever directory the editor runs in.
 
 - A `--layout` or config value is a path when it contains `/` or `\` or ends in `.json`, and a
   bundled board name otherwise. The rule is written in both `config.py` and `layout_resolver.py`,
@@ -76,7 +76,7 @@ conform.nvim pass nothing but `-k`, from whatever directory the editor runs in.
 ## A bundled board is a file, and nothing else registers it
 
 Each JSON file in `src/keymap_align/layouts/` is one board, named by its file stem. `--layout` and
-`--list-layouts` read that directory through `importlib.resources`, so adding a file adds a board.
+`layouts list` read that directory through `importlib.resources`, so adding a file adds a board.
 `resolve_layout` returns a context manager rather than a path. A package imported from a zip has
 no layout file on disk, so the path is a temporary copy that exists only inside the `with` block.
 The aligner reads `layout`, and reads `name` only for `--debug`. The `key_positions` grid in the
@@ -94,10 +94,8 @@ bundled files is read by nothing.
   exact-match test on it checks only that aligned input stays unchanged.
   `glove80_input_cramped_no_spacing.keymap` and `corne_6key_input_comments_and_properties.keymap`
   are the inputs the suite actually realigns.
-- `test_cli_execution` aligns a copy of its input in `tmp_path`, with no `-o`. No test writes to a
-  fixture.
-- `test_cli_execution` runs whichever `keymap-align` is first on `PATH`. Under `uv run` that is
-  this checkout. Run any other way, it can be an installed release.
+- `test_format_without_output_rewrites_the_keymap_in_place` aligns a copy of its input in
+  `tmp_path`. No test writes to a fixture.
 - `get_test_file` skips a test whose fixture is missing, so a renamed fixture turns its tests into
   skips rather than failures.
 

@@ -84,6 +84,7 @@ wheels = [
 name = "keymap-align"
 source = { editable = "." }
 dependencies = [
+    { name = "pyselfupdate", extra = ["typer"] },
     { name = "typer" },
 ]
 
@@ -99,7 +100,10 @@ test = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "typer", specifier = ">=0.12.0" }]
+requires-dist = [
+    { name = "pyselfupdate", extras = ["typer"], specifier = ">=0.5.4" },
+    { name = "typer", specifier = ">=0.12.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [
@@ -276,6 +280,20 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/b0/77/a5b8c569bf593b0140bde72ea885a803b82086995367bf2037de0159d924/pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887", size = 4968631, upload-time = "2025-06-21T13:39:12.283Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b", size = 1225217, upload-time = "2025-06-21T13:39:07.939Z" },
+]
+
+[[package]]
+name = "pyselfupdate"
+version = "0.5.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/51/19/ea453a4cbd40aaa9704ae445910aa5e2f45c721b7baaf8bf17de7097aab1/pyselfupdate-0.5.4.tar.gz", hash = "sha256:ad0e4f24bbe86975721e0c3ff8fa305c4e3ef3eb921692a7e821827a17426aed", size = 35831, upload-time = "2026-10-18T08:05:20.097Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/32/fd/3f619ddee809b89db974fb85c0dd21aaf1ec0e07f37aefd826d833e8d1c2/pyselfupdate-0.5.4-py3-none-any.whl", hash = "sha256:a7b907b4c15d63483eeac663abe960a95857a456753b3b7c5b9c724379be892d", size = 40719, upload-time = "2026-10-18T08:05:18.813Z" },
+]
+
+[package.optional-dependencies]
+typer = [
+    { name = "typer" },
 ]
 
 [[package]]

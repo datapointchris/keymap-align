@@ -17,28 +17,26 @@ keymap-align reads ZMK keymap files and a JSON layout definition, then reformats
 
 ## Installation
 
-Every release is published to a package index of its own:
-
 ```bash
-uv tool install --index https://pypi.ichrisbirch.com/simple/ keymap-align
+uv tool install keymap-align
 ```
 
-uv records the index beside the tool, so `uv tool upgrade keymap-align` reads it back.
+`keymap-align update` installs the newest release.
 
 ## Quick Start
 
 ```bash
 # Align a keymap in place, using a board that ships with the tool
-keymap-align -k config/corne.keymap --layout corne42
+keymap-align format -k config/corne.keymap --layout corne42
 
 # Use a layout file of your own, and write to a separate file
-keymap-align -k config/glove80.keymap -l my_layout.json -o aligned.keymap
+keymap-align format -k config/glove80.keymap -l my_layout.json -o aligned.keymap
 
 # Debug mode: show the layout and each layer's grid without writing
-keymap-align -k config/piantor.keymap --layout piantor --debug
+keymap-align format -k config/piantor.keymap --layout piantor --debug
 ```
 
-`keymap-align --list-layouts` prints the boards that ship with the tool.
+`keymap-align layouts list` prints the boards that ship with the tool.
 
 ## Config File
 
@@ -61,7 +59,7 @@ The search lets an editor formatter pass nothing but the keymap. For conform.nvi
 ```lua
 keymap_align = {
   command = 'keymap-align',
-  args = { '-k', '$FILENAME' },
+  args = { 'format', '-k', '$FILENAME' },
   stdin = false,
 },
 ```

@@ -5,7 +5,6 @@ Comprehensive tests for keymap_align package using pytest.
 import filecmp
 import json
 import shutil
-import subprocess
 from pathlib import Path
 
 import pytest
@@ -571,7 +570,7 @@ class TestErrorHandling:
         layout_file = get_test_file('layouts/glove80_80key_layout.json')
         before = keymap.read_bytes()
 
-        result = CliRunner().invoke(app, ['-k', str(keymap), '-l', str(layout_file)])
+        result = CliRunner().invoke(app, ['format', '-k', str(keymap), '-l', str(layout_file)])
 
         assert result.exit_code == 1
         assert "layer 'EXTRA_BINDINGS' holds 83 bindings, but the layout has 80 keys" in result.output
@@ -646,25 +645,16 @@ class TestNodeContentSurvives:
         assert line in aligned
 
 
-class TestScriptExecution:
-    """Tests for direct script execution."""
-
-    def test_cli_execution(self, tmp_path):
-        """Test that the CLI executes successfully with basic parameters"""
+class TestFormatCommand:
+    def test_format_without_output_rewrites_the_keymap_in_place(self, tmp_path):
         keymap = tmp_path / 'glove80.keymap'
-        shutil.copy(get_test_file('test_keymaps/misaligned/glove80_input_badly_aligned.keymap'), keymap)
+        shutil.copy(get_test_file('test_keymaps/misaligned/glove80_input_cramped_no_spacing.keymap'), keymap)
         layout_file = get_test_file('layouts/glove80_80key_layout.json')
 
-        # Test help command
-        result = subprocess.run(['keymap-align', '-h'], capture_output=True, text=True)
-        assert result.returncode == 0, 'Help command should succeed'
-        assert 'usage:' in result.stdout.lower()
+        result = CliRunner().invoke(app, ['format', '-k', str(keymap), '-l', str(layout_file)])
 
-        # Test normal execution
-        result = subprocess.run(['keymap-align', '-k', str(keymap), '-l', str(layout_file)], capture_output=True, text=True)
-
-        assert result.returncode == 0, f'CLI execution should succeed. stderr: {result.stderr}'
-        assert 'Alignment completed successfully!' in result.stdout
+        assert result.exit_code == 0, result.output
+        assert keymap.read_bytes() == get_test_file('test_keymaps/correct/glove80_reference_reverse_key_order.keymap').read_bytes()
 
 
 class TestAlignment_Formatting:
