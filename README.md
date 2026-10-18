@@ -17,11 +17,13 @@ keymap-align reads ZMK keymap files and a JSON layout definition, then reformats
 
 ## Installation
 
-The package is not on PyPI. Install it from the repository:
+Every release is published to a package index of its own:
 
 ```bash
-uv tool install git+https://github.com/datapointchris/keymap-align
+uv tool install --index https://pypi.ichrisbirch.com/simple/ keymap-align
 ```
+
+uv records the index beside the tool, so `uv tool upgrade keymap-align` reads it back.
 
 ## Quick Start
 
