@@ -151,7 +151,6 @@ def handle_multi_param_behavior(tokens, i, binding_parts, binding_macros):
 
 def handle_standard_behavior(tokens, i, binding_parts, binding_macros):
     """Handle standard behaviors with simple parameters."""
-    # Collect parameters until the next binding starts or the tokens run out
     while i < len(tokens) and not tokens[i].startswith('&') and tokens[i] not in binding_macros:
         binding_parts.append(tokens[i])
         i += 1
@@ -614,7 +613,8 @@ def align_keymap_with_layout(
     """Align keymap bindings according to keyboard layout.
 
     Only the inside of each layer's `bindings` array is rewritten. A keymap that cannot be
-    rewritten without losing text is reported, and nothing is written.
+    rewritten without losing text gets each problem printed to stderr, nothing written, and a
+    return of False.
 
     Args:
         keymap_file: Path to the keymap file

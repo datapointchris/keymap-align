@@ -19,15 +19,15 @@ holds each of those beside the layers.
 
 Before anything is written, each array's whitespace-separated tokens are compared with those of
 its realigned rows. A token the rows would not reproduce is an error, and the run writes nothing.
-That catches a comment inside an array, an undefined macro name before the first `&`, and a parameter past a
-multi-parameter behavior's count. The run also refuses, and writes nothing, when:
+That catches a comment inside an array, an undefined macro name before the first `&`, and a
+parameter past a multi-parameter behavior's count. The run also refuses, and writes nothing, when:
 
 - a layer holds more bindings than the layout has keys;
 - two layer nodes share a name, because the layers are keyed by name;
 - a `bindings` property holds more than one `< >` array.
 
-A layer with too few bindings gets a blank cell for each one missing. `--debug` prints its grids
-and then runs the same checks, so it exits 1 wherever a real run would.
+A layer with too few bindings gets a blank cell for each one missing. `--debug` prints the layout
+and each layer's grid, then runs the same checks, so it exits 1 wherever a real run would.
 
 ## A binding ends where the next one starts, so a behavior-valued parameter must be declared
 
