@@ -54,6 +54,20 @@ Examples:
 [b]keymap-align format -k corne.keymap -o aligned.keymap[/b] — write elsewhere, leave the original
 """
 
+LAYOUTS_EPILOG = """
+Examples:
+
+[b]keymap-align layouts list[/b] — the boards --layout accepts
+"""
+
+UPDATE_EPILOG = """
+Examples:
+
+[b]keymap-align update --check[/b] — whether a newer release exists, without installing it
+
+[b]keymap-align update[/b] — install the latest release
+"""
+
 # One config for `update` and the notice, so the notice never names a release `update` would not install.
 UPDATE_CONFIG = Config(tool='keymap-align', owner='datapointchris')
 
@@ -69,6 +83,7 @@ layouts_app = typer.Typer(
     name='layouts',
     no_args_is_help=True,
     help='The keyboard layouts that ship with the tool, each one a name `format --layout` accepts.',
+    epilog=LAYOUTS_EPILOG,
 )
 app.add_typer(layouts_app, name='layouts')
 
@@ -149,14 +164,14 @@ def format_keymap(
     raise typer.Exit(0 if success else 1)
 
 
-@layouts_app.command('list')
+@layouts_app.command('list', epilog=LAYOUTS_EPILOG)
 def list_layouts() -> None:
     """Print the name of every bundled layout, one per line."""
     for name in get_bundled_layout_names():
         print(name)
 
 
-@app.command(rich_help_panel='Manage')
+@app.command(rich_help_panel='Manage', epilog=UPDATE_EPILOG)
 def update(
     check_only: Annotated[bool, typer.Option('--check', help='Report whether an update is available without installing it.')] = False,
 ) -> None:
