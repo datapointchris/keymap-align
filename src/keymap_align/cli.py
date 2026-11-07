@@ -60,6 +60,14 @@ Examples:
 [b]keymap-align layouts list[/b] — the boards --layout accepts
 """
 
+LAYOUTS_LIST_EPILOG = """
+Examples:
+
+[b]keymap-align layouts list[/b] — every name --layout accepts, one per line
+
+[b]keymap-align layouts list | grep -x corne42[/b] — whether a board ships with the tool, exit 0 if it does
+"""
+
 UPDATE_EPILOG = """
 Examples:
 
@@ -164,7 +172,7 @@ def format_keymap(
     raise typer.Exit(0 if success else 1)
 
 
-@layouts_app.command('list', epilog=LAYOUTS_EPILOG)
+@layouts_app.command('list', epilog=LAYOUTS_LIST_EPILOG)
 def list_layouts() -> None:
     """Print the name of every bundled layout, one per line."""
     for name in get_bundled_layout_names():
