@@ -1,4 +1,4 @@
 # No release here writes a changelog. If a generated one arrives, it is never
-# linted: a release would undo any normalization and it would return as a
-# conflict.
+# linted: a release would undo any normalization, and the file would come back
+# as a conflict.
 CHANGELOG.md
