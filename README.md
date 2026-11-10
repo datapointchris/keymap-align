@@ -122,7 +122,7 @@ keymap-align/
 git clone https://github.com/datapointchris/keymap-align
 cd keymap-align
 uv sync --all-groups
-uv run pre-commit install
+uv run pre-commit install  # every git commit then runs all the hooks
 
 # Run tests
 uv run pytest
@@ -131,9 +131,6 @@ uv run pytest
 uv run ruff check src/
 uv run ruff format src/
 uv run mypy src/
-
-# Pre-commit (runs all checks)
-uv run pre-commit run --all-files
 ```
 
 ## License
