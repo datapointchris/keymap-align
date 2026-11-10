@@ -79,7 +79,8 @@ Each JSON file in `src/keymap_align/layouts/` is one board, named by its file st
 `layouts list` read that directory through `importlib.resources`, so adding a file adds a board.
 `resolve_layout` returns a context manager rather than a path. A package imported from a zip has
 no layout file on disk, so the path is a temporary copy that exists only inside the `with` block.
-The aligner reads `layout`, and reads `name` only for `--debug`. The `key_positions` grid in the
+The aligner reads `layout`, and reads `name` only for `--debug`. `layouts list` prints `name`
+and the count of `"X"` cells beside each board, tab-separated after the board name. The `key_positions` grid in the
 bundled files is read by nothing.
 
 ## The golden tests compare bytes, and one input is already aligned

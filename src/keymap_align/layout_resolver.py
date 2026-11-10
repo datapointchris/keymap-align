@@ -5,6 +5,7 @@ Handles bundled layouts and layout path resolution.
 
 import contextlib
 import importlib.resources
+import json
 from pathlib import Path
 
 
@@ -13,6 +14,14 @@ def get_bundled_layout_names() -> list[str]:
     layouts_package = importlib.resources.files('keymap_align.layouts')
     names = [item.name[:-5] for item in layouts_package.iterdir() if item.name.endswith('.json')]
     return sorted(names)
+
+
+def describe_bundled_layout(name: str) -> tuple[str, int]:
+    """Return a bundled layout's `name` field and its key count, the `"X"` cells in its grid."""
+    layout_file = importlib.resources.files('keymap_align.layouts').joinpath(f'{name}.json')
+    data = json.loads(layout_file.read_text())
+    keys = sum(row.count('X') for row in data['layout'])
+    return data.get('name', ''), keys
 
 
 def bundled_layout_path(name: str) -> contextlib.AbstractContextManager[Path]:

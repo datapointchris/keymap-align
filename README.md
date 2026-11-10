@@ -36,7 +36,7 @@ keymap-align format -k config/glove80.keymap -l my_layout.json -o aligned.keymap
 keymap-align format -k config/piantor.keymap --layout piantor --debug
 ```
 
-`keymap-align layouts list` prints the boards that ship with the tool.
+`keymap-align layouts list` prints the boards that ship with the tool, one per line: the name `--layout` takes, its key count and its description, separated by tabs.
 
 ## Config File
 

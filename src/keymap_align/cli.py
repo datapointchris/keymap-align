@@ -14,6 +14,7 @@ from keymap_align.align import align_keymap_with_layout
 from keymap_align.config import find_config_file
 from keymap_align.config import get_align_config
 from keymap_align.config import load_config
+from keymap_align.layout_resolver import describe_bundled_layout
 from keymap_align.layout_resolver import get_bundled_layout_names
 from keymap_align.layout_resolver import resolve_layout
 
@@ -63,9 +64,9 @@ Examples:
 LAYOUTS_LIST_EPILOG = """
 Examples:
 
-[b]keymap-align layouts list[/b] — every name --layout accepts, one per line
+[b]keymap-align layouts list[/b] — every name --layout accepts, with its key count and description
 
-[b]keymap-align layouts list | grep -x corne42[/b] — whether a board ships with the tool, exit 0 if it does
+[b]keymap-align layouts list | cut -f1 | grep -x corne42[/b] — whether a board ships with the tool, exit 0 if it does
 """
 
 UPDATE_EPILOG = """
@@ -178,9 +179,10 @@ def format_keymap(
 
 @layouts_app.command('list', epilog=LAYOUTS_LIST_EPILOG)
 def list_layouts() -> None:
-    """Print the name of every bundled layout, one per line."""
+    """Print every bundled layout, one per line: the name --layout accepts, its key count and its description."""
     for name in get_bundled_layout_names():
-        print(name)
+        description, keys = describe_bundled_layout(name)
+        print(f'{name}\t{keys} keys\t{description}')
 
 
 @app.command(rich_help_panel='Manage', epilog=UPDATE_EPILOG)

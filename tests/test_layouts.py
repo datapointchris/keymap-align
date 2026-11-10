@@ -10,6 +10,7 @@ import pytest
 
 import keymap_align
 from keymap_align.layout_resolver import bundled_layout_path
+from keymap_align.layout_resolver import describe_bundled_layout
 from keymap_align.layout_resolver import get_bundled_layout_names
 from keymap_align.layout_resolver import resolve_layout
 
@@ -33,6 +34,12 @@ class TestGetBundledLayoutNames:
         """Should return layouts in sorted order."""
         result = get_bundled_layout_names()
         assert result == sorted(result)
+
+
+def test_describe_bundled_layout_counts_the_keys_in_its_grid():
+    """`layouts list` shows each board's key count, so a reader can tell a 42-key board from an 80-key one."""
+    assert describe_bundled_layout('glove80') == ('Glove80 Layout', 80)
+    assert describe_bundled_layout('corne42') == ('Corne 42 Layout', 42)
 
 
 class TestBundledLayoutPath:
