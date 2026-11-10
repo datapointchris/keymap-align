@@ -4,6 +4,7 @@ Comprehensive tests for keymap_align package using pytest.
 
 import filecmp
 import json
+import shlex
 import shutil
 from pathlib import Path
 
@@ -638,3 +639,20 @@ class TestFormatCommand:
 
         assert result.exit_code == 0, result.output
         assert keymap.read_bytes() == get_test_file('test_keymaps/correct/glove80_reference_reverse_key_order.keymap').read_bytes()
+
+    @pytest.mark.parametrize(
+        'layout_args',
+        [
+            pytest.param(['-l', 'glove80'], id='bundled name given to --layout-file'),
+        ],
+    )
+    def test_a_layout_error_prints_a_command_that_aligns_the_keymap(self, tmp_path, layout_args):
+        keymap = tmp_path / 'glove80.keymap'
+        shutil.copy(get_test_file('test_keymaps/misaligned/glove80_input_badly_aligned.keymap'), keymap)
+
+        refused = CliRunner().invoke(app, ['format', '-k', str(keymap), *layout_args])
+        printed = shlex.split(refused.stderr.splitlines()[-1])
+
+        assert refused.exit_code == 1
+        assert printed[:2] == ['keymap-align', 'format']
+        assert CliRunner().invoke(app, printed[1:]).exit_code == 0

@@ -1,5 +1,6 @@
 import json
 import re
+import shlex
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -326,6 +327,16 @@ def layers_by_name(layers):
 def extract_all_layers(keymap_content):
     """Map each layer's node name to its bindings and display-name."""
     return layers_by_name(find_layers(keymap_content))
+
+
+def rerun_with_bundled_layout(keymap_file, layout_name, output_file=None, debug=False):
+    """Return the `keymap-align format` command line that repeats a run with a bundled layout in place of its own."""
+    command = ['keymap-align', 'format', '-k', keymap_file, '--layout', layout_name]
+    if output_file:
+        command += ['-o', output_file]
+    if debug:
+        command.append('--debug')
+    return shlex.join(command)
 
 
 def load_layout(layout_file):

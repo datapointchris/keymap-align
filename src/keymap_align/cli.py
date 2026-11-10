@@ -11,6 +11,7 @@ from pyselfupdate import notify
 from pyselfupdate.typercmd import run_update
 
 from keymap_align.align import align_keymap_with_layout
+from keymap_align.align import rerun_with_bundled_layout
 from keymap_align.config import find_config_file
 from keymap_align.config import get_align_config
 from keymap_align.config import load_config
@@ -158,6 +159,17 @@ def format_keymap(
             print(f'Warning: Failed to load config from {config_path}: {e}', file=sys.stderr)
 
     align_config = get_align_config(config, config_path)
+
+    if layout_file is not None and not Path(layout_file).exists():
+        bundled_name = layout_file.removesuffix('.json')
+        if bundled_name in get_bundled_layout_names():
+            print(
+                f"Error: Layout file '{layout_file}' not found. --layout-file (-l) reads a file, "
+                f'and {bundled_name} is a bundled layout, which --layout names:',
+                file=sys.stderr,
+            )
+            print(f'  {rerun_with_bundled_layout(keymap, bundled_name, output, debug)}', file=sys.stderr)
+            raise typer.Exit(1)
 
     try:
         layout_context = resolve_layout(layout, layout_file, align_config.layout)
