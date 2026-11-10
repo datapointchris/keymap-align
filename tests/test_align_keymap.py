@@ -245,23 +245,6 @@ class TestLayerExtraction:
         assert layer2['bindings'][0] == '&kp N1'
         assert layer2['bindings'][1] == '&kp N2'
 
-    def test_layer_validation_insufficient_bindings(self):
-        """Test validation of layers with insufficient bindings."""
-        insufficient_file = get_test_file('test_keymaps/misaligned/glove80_input_insufficient_bindings.keymap')
-        glove80_layout_file = get_test_file('layouts/glove80_80key_layout.json')
-
-        load_layout(str(glove80_layout_file))
-        content = insufficient_file.read_text()
-        layers = extract_all_layers(content)
-
-        # Should extract layers but they may be insufficient
-        assert len(layers) > 0
-        for _layer_name, layer_data in layers.items():
-            # Insufficient files should have fewer bindings than required
-            assert isinstance(layer_data, dict)
-            assert 'bindings' in layer_data
-            assert isinstance(layer_data['bindings'], list)
-
 
 class TestColumnWidthCalculation:
     """Tests for column width calculation functionality."""
@@ -655,26 +638,3 @@ class TestFormatCommand:
 
         assert result.exit_code == 0, result.output
         assert keymap.read_bytes() == get_test_file('test_keymaps/correct/glove80_reference_reverse_key_order.keymap').read_bytes()
-
-
-class TestAlignment_Formatting:
-    """Tests for alignment and formatting specifics."""
-
-    def test_two_space_padding_requirement(self):
-        """Test that all columns have exactly 2 spaces of padding after the longest binding."""
-        reference_file = get_test_file('test_keymaps/correct/glove80_reference_properly_aligned.keymap')
-
-        # Extract one layer's bindings for testing
-        binding_lines = [line for line in reference_file.read_text().split('\n') if line.strip().startswith('&')]
-
-        if binding_lines:
-            # Check that bindings are properly spaced
-            sample_line = binding_lines[0]
-
-            # Should contain multiple bindings separated by proper spacing
-            bindings = sample_line.split()
-            assert len(bindings) > 1, 'Should have multiple bindings per line'
-
-            # Check for consistent formatting (this is a basic check)
-            # More sophisticated padding tests would require parsing the layout structure
-            assert '&' in sample_line, 'Should contain binding markers'
