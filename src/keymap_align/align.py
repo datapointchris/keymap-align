@@ -7,6 +7,8 @@ from pathlib import Path
 
 from keymap_align.config import DEFAULT_INDENT_SIZE
 from keymap_align.config import DEFAULT_PADDING
+from keymap_align.layout_resolver import describe_bundled_layout
+from keymap_align.layout_resolver import get_bundled_layout_names
 
 
 class Colors:
@@ -337,6 +339,28 @@ def rerun_with_bundled_layout(keymap_file, layout_name, output_file=None, debug=
     if debug:
         command.append('--debug')
     return shlex.join(command)
+
+
+def print_bundled_layouts_that_fit(layers, layout, keymap_file, output_file, debug):
+    """When every layer holds more bindings than `layout` has keys, print the bundled layouts sized for the keymap.
+
+    A layer that fits means the layout matches the keymap and the larger layers hold extra
+    bindings, so then nothing is printed. A bundled layout fits when its key count equals the
+    largest layer's binding count.
+    """
+    key_count = sum(row.count('X') for row in layout['layout'])
+    if any(len(layer.bindings) <= key_count for layer in layers):
+        return
+    needed = max(len(layer.bindings) for layer in layers)
+    sizes = {name: describe_bundled_layout(name)[1] for name in get_bundled_layout_names()}
+    fits = [name for name, keys in sizes.items() if keys == needed]
+    if not fits:
+        bundled = ', '.join(f'{name} has {keys}' for name, keys in sizes.items())
+        print(f'No bundled layout has {needed} keys: {bundled}. A layout of your own goes in --layout-file.', file=sys.stderr)
+        return
+    print(f'Bundled layouts with {needed} keys:', file=sys.stderr)
+    for name in fits:
+        print(f'  {rerun_with_bundled_layout(keymap_file, name, output_file, debug)}', file=sys.stderr)
 
 
 def load_layout(layout_file):
@@ -676,6 +700,7 @@ def align_keymap_with_layout(
         for problem in str(e).splitlines():
             print(f'Error: {problem}', file=sys.stderr)
         print('Nothing was written.', file=sys.stderr)
+        print_bundled_layouts_that_fit(layers, layout, keymap_file, output_file, debug)
         return False
 
     if debug:

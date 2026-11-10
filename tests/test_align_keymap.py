@@ -644,6 +644,7 @@ class TestFormatCommand:
         'layout_args',
         [
             pytest.param(['-l', 'glove80'], id='bundled name given to --layout-file'),
+            pytest.param(['--layout', 'corne42'], id='layout smaller than every layer'),
         ],
     )
     def test_a_layout_error_prints_a_command_that_aligns_the_keymap(self, tmp_path, layout_args):
