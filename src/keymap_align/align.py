@@ -615,7 +615,7 @@ def print_layer_with_alignment(layout_matrix, bindings, layer_column_widths, col
                     binding_index += 1
                 else:
                     empty_text = f'[{colors.RED}---{colors.RESET}]'
-                    color_len = len(empty_text) - 3
+                    color_len = len(empty_text) - len('[---]')
                     padded_text = empty_text.ljust(layer_column_widths[col_idx] + color_len)
                     row_display.append(padded_text)
             else:
