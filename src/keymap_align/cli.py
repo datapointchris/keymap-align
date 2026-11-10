@@ -140,7 +140,11 @@ def format_keymap(
     ] = None,
     debug: Annotated[
         bool,
-        typer.Option('--debug', help='Show the column math behind each alignment decision.', rich_help_panel='Output'),
+        typer.Option(
+            '--debug',
+            help="Print the layout and each layer's grid, run every check, and write nothing.",
+            rich_help_panel='Output',
+        ),
     ] = False,
 ) -> None:
     keymap_path = Path(keymap).resolve()
