@@ -49,6 +49,9 @@ fact and must agree. The names in them are user-defined hold-taps, not ZMK built
 own hold-tap takes a behavior parameter under another name misparses without an error.
 
 `DIMMED_BEHAVIORS`, `KEYPRESS_BEHAVIORS` and `STOCK_ZMK_BEHAVIORS` only color `--debug` output.
+That color is chosen once, by `palette_for`, and every debug printer takes the palette it
+returns. Color goes only to a terminal. `NO_COLOR` turns it off everywhere, and `FORCE_COLOR`
+turns it on for a pipe, such as a pager run with `-R`.
 
 ## Column widths are shared by every layer
 

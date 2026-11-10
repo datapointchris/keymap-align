@@ -7,10 +7,13 @@ import json
 import shlex
 import shutil
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from typer.testing import CliRunner
 
+from keymap_align.align import ANSI_PALETTE
+from keymap_align.align import PLAIN_PALETTE
 from keymap_align.align import align_keymap_with_layout
 from keymap_align.align import build_layer_structure
 from keymap_align.align import calculate_column_widths
@@ -18,6 +21,7 @@ from keymap_align.align import extract_all_layers
 from keymap_align.align import extract_bindings_from_content
 from keymap_align.align import format_binding_rows
 from keymap_align.align import load_layout
+from keymap_align.align import palette_for
 from keymap_align.cli import app
 
 # Consolidated fixtures for cleaner code
@@ -657,3 +661,17 @@ class TestFormatCommand:
         assert refused.exit_code == 1
         assert printed[:2] == ['keymap-align', 'format']
         assert CliRunner().invoke(app, printed[1:]).exit_code == 0
+
+
+@pytest.mark.parametrize(
+    ('tty', 'environ', 'palette'),
+    [
+        pytest.param(True, {}, ANSI_PALETTE, id='terminal'),
+        pytest.param(False, {}, PLAIN_PALETTE, id='pipe'),
+        pytest.param(True, {'NO_COLOR': '1'}, PLAIN_PALETTE, id='NO_COLOR on a terminal'),
+        pytest.param(False, {'FORCE_COLOR': '1'}, ANSI_PALETTE, id='FORCE_COLOR into a pipe'),
+        pytest.param(True, {'NO_COLOR': '1', 'FORCE_COLOR': '1'}, PLAIN_PALETTE, id='NO_COLOR outranks FORCE_COLOR'),
+    ],
+)
+def test_debug_output_is_colored_only_on_a_terminal_and_never_under_no_color(tty, environ, palette):
+    assert palette_for(SimpleNamespace(isatty=lambda: tty), environ) is palette

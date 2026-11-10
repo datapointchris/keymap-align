@@ -1,4 +1,5 @@
 import json
+import os
 import re
 import shlex
 import sys
@@ -11,21 +12,52 @@ from keymap_align.layout_resolver import describe_bundled_layout
 from keymap_align.layout_resolver import get_bundled_layout_names
 
 
-class Colors:
-    """ANSI Color codes for terminal output."""
+@dataclass(frozen=True)
+class Palette:
+    """The escape codes `--debug` output is colored with, each an empty string where color is off."""
 
-    RESET = '\033[0m'
-    GREEN = '\033[92m'
-    BLUE = '\033[94m'
-    ORANGE = '\033[38;5;208m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    CYAN = '\033[96m'
-    BOLD = '\033[1m'
-    PURPLE = '\033[95m'
-    MAGENTA = '\033[38;5;198m'
-    GRAY = '\033[90m'
-    BRIGHT_GREEN = '\033[38;5;46m'
+    RESET: str = ''
+    GREEN: str = ''
+    BLUE: str = ''
+    ORANGE: str = ''
+    RED: str = ''
+    YELLOW: str = ''
+    CYAN: str = ''
+    BOLD: str = ''
+    PURPLE: str = ''
+    MAGENTA: str = ''
+    GRAY: str = ''
+
+
+ANSI_PALETTE = Palette(
+    RESET='\033[0m',
+    GREEN='\033[92m',
+    BLUE='\033[94m',
+    ORANGE='\033[38;5;208m',
+    RED='\033[91m',
+    YELLOW='\033[93m',
+    CYAN='\033[96m',
+    BOLD='\033[1m',
+    PURPLE='\033[95m',
+    MAGENTA='\033[38;5;198m',
+    GRAY='\033[90m',
+)
+PLAIN_PALETTE = Palette()
+
+
+def palette_for(stream, environ=os.environ):
+    """Return the palette for text written to `stream`: color only on a terminal, and never under NO_COLOR.
+
+    NO_COLOR is the user's preference, so it wins. FORCE_COLOR overrides only the terminal
+    check, for a pager run with -R. A dumb terminal renders no escapes.
+    """
+    if environ.get('NO_COLOR'):
+        return PLAIN_PALETTE
+    if environ.get('FORCE_COLOR'):
+        return ANSI_PALETTE
+    if environ.get('TERM') == 'dumb':
+        return PLAIN_PALETTE
+    return ANSI_PALETTE if stream.isatty() else PLAIN_PALETTE
 
 
 DIMMED_BEHAVIORS = {'&none', '&trans'}
@@ -58,20 +90,20 @@ STOCK_ZMK_BEHAVIORS = {
 MULTI_PARAM_BEHAVIORS = {'&hmr', '&hml', '&hmrt', '&hmlt', '&ltl', '&ltr', '&td'}
 
 
-def get_behavior_color(behavior):
+def get_behavior_color(behavior, colors):
     if not behavior.startswith('&'):
-        return Colors.RESET
+        return colors.RESET
 
     behavior_name = behavior.split()[0].lower()
 
     if behavior_name in DIMMED_BEHAVIORS:
-        return Colors.GRAY
+        return colors.GRAY
     if behavior_name in KEYPRESS_BEHAVIORS:
-        return Colors.ORANGE
+        return colors.ORANGE
     if behavior_name in STOCK_ZMK_BEHAVIORS:
-        return Colors.PURPLE
+        return colors.PURPLE
     # Custom/user-defined behaviors (home row mods, custom macros, etc.)
-    return Colors.MAGENTA
+    return colors.MAGENTA
 
 
 def extract_bindings_from_content(bindings_content, binding_macros=frozenset()):
@@ -486,13 +518,13 @@ def realign_bindings(keymap_content, layers, structured_layers, column_widths, l
     return ''.join(pieces)
 
 
-def visual_debug_print_layout(layout):
+def visual_debug_print_layout(layout, colors):
     """Print keyboard layout structure for human inspection."""
-    print(f'\n{Colors.GREEN}{Colors.BOLD}{"=" * 70}')
+    print(f'\n{colors.GREEN}{colors.BOLD}{"=" * 70}')
     print('ZMK KEYMAP ALIGNMENT DEBUG')
-    print(f'{"=" * 70}{Colors.RESET}')
+    print(f'{"=" * 70}{colors.RESET}')
 
-    print(f'\n{Colors.CYAN}KEYBOARD LAYOUT INFORMATION{Colors.RESET}')
+    print(f'\n{colors.CYAN}KEYBOARD LAYOUT INFORMATION{colors.RESET}')
     print('─' * 50)
 
     layout_matrix = layout['layout']
@@ -500,31 +532,31 @@ def visual_debug_print_layout(layout):
     columns = len(layout_matrix[0]) if layout_matrix else 0
     total_keys = sum(sum(1 for cell in row if cell == 'X') for row in layout_matrix)
 
-    print(f'  Layout name: {Colors.YELLOW}{layout.get("name", "Unknown")}{Colors.RESET}')
-    print(f'  Dimensions:  {Colors.YELLOW}{rows} rows x {columns} columns{Colors.RESET}')
-    print(f'  Total keys:  {Colors.YELLOW}{total_keys}{Colors.RESET}')
+    print(f'  Layout name: {colors.YELLOW}{layout.get("name", "Unknown")}{colors.RESET}')
+    print(f'  Dimensions:  {colors.YELLOW}{rows} rows x {columns} columns{colors.RESET}')
+    print(f'  Total keys:  {colors.YELLOW}{total_keys}{colors.RESET}')
 
-    print(f'\n{Colors.CYAN}LAYOUT MATRIX{Colors.RESET} (X = key position, - = empty)')
+    print(f'\n{colors.CYAN}LAYOUT MATRIX{colors.RESET} (X = key position, - = empty)')
     print('─' * 50)
 
     for row_idx, row in enumerate(layout_matrix):
         row_display = []
         for col_idx, cell in enumerate(row):
             if cell == 'X':
-                row_display.append(f'{Colors.GREEN}[{col_idx:2d}]{Colors.RESET}')
+                row_display.append(f'{colors.GREEN}[{col_idx:2d}]{colors.RESET}')
             else:
                 row_display.append('    ')
         print(f'  Row {row_idx:2d}: ' + ' '.join(row_display))
 
 
-def visual_debug_print_layer_bindings(layers, layout, column_widths):
+def visual_debug_print_layer_bindings(layers, layout, column_widths, colors):
     """Print layer bindings in keyboard layout matrix format."""
-    print(f'\n{Colors.CYAN}COLUMN WIDTHS{Colors.RESET}')
+    print(f'\n{colors.CYAN}COLUMN WIDTHS{colors.RESET}')
     print('─' * 50)
     print('  Col: ' + ' '.join(f'{i:2d}' for i in range(len(column_widths))))
     print('  Width: ' + ' '.join(f'{width:2d}' for width in column_widths))
 
-    print(f'\n{Colors.CYAN}LAYER BINDINGS LAYOUT{Colors.RESET}')
+    print(f'\n{colors.CYAN}LAYER BINDINGS LAYOUT{colors.RESET}')
     print('─' * 50)
 
     layout_matrix = layout['layout']
@@ -536,14 +568,14 @@ def visual_debug_print_layer_bindings(layers, layout, column_widths):
         if display_name:
             layer_title += f' ("{display_name}")'
 
-        print(f'\n  {Colors.BLUE}{Colors.BOLD}{layer_title}{Colors.RESET}')
-        print(f'     Total bindings: {Colors.YELLOW}{len(bindings)}{Colors.RESET}')
+        print(f'\n  {colors.BLUE}{colors.BOLD}{layer_title}{colors.RESET}')
+        print(f'     Total bindings: {colors.YELLOW}{len(bindings)}{colors.RESET}')
 
         # Calculate layer-specific column widths for compact display
         layer_column_widths = calculate_layer_column_widths(layout_matrix, bindings)
 
         # Display the layer with proper visual alignment
-        print_layer_with_alignment(layout_matrix, bindings, layer_column_widths)
+        print_layer_with_alignment(layout_matrix, bindings, layer_column_widths, colors)
 
 
 def calculate_layer_column_widths(layout_matrix, bindings):
@@ -561,7 +593,7 @@ def calculate_layer_column_widths(layout_matrix, bindings):
     return layer_column_widths
 
 
-def print_layer_with_alignment(layout_matrix, bindings, layer_column_widths):
+def print_layer_with_alignment(layout_matrix, bindings, layer_column_widths, colors):
     """Print a single layer with proper visual keyboard alignment."""
     binding_index = 0
 
@@ -574,7 +606,7 @@ def print_layer_with_alignment(layout_matrix, bindings, layer_column_widths):
             if cell == 'X':
                 if binding_index < len(bindings):
                     binding = bindings[binding_index]
-                    colored_binding = colorize_binding(binding)
+                    colored_binding = colorize_binding(binding, colors)
                     display_text = f'[{colored_binding}]'
                     # Account for color codes in padding calculation
                     color_len = len(colored_binding) - len(binding)
@@ -582,7 +614,7 @@ def print_layer_with_alignment(layout_matrix, bindings, layer_column_widths):
                     row_display.append(padded_text)
                     binding_index += 1
                 else:
-                    empty_text = f'[{Colors.RED}---{Colors.RESET}]'
+                    empty_text = f'[{colors.RED}---{colors.RESET}]'
                     color_len = len(empty_text) - 3
                     padded_text = empty_text.ljust(layer_column_widths[col_idx] + color_len)
                     row_display.append(padded_text)
@@ -592,42 +624,42 @@ def print_layer_with_alignment(layout_matrix, bindings, layer_column_widths):
         print(f'     Row {row_idx:2d}: ' + ''.join(row_display).rstrip())
 
 
-def colorize_binding(binding):
+def colorize_binding(binding, colors):
     """Apply appropriate color to a binding for display."""
     if not binding.startswith('&'):
         return binding
 
     parts = binding.split()
-    behavior_color = get_behavior_color(binding)
+    behavior_color = get_behavior_color(binding, colors)
 
     if len(parts) > 1:
-        return f'{behavior_color}{parts[0]}{Colors.RESET} {" ".join(parts[1:])}'
-    return f'{behavior_color}{binding}{Colors.RESET}'
+        return f'{behavior_color}{parts[0]}{colors.RESET} {" ".join(parts[1:])}'
+    return f'{behavior_color}{binding}{colors.RESET}'
 
 
-def visual_debug_print_formatted_layers(structured_layers, column_widths, indent_size=DEFAULT_INDENT_SIZE):
+def visual_debug_print_formatted_layers(structured_layers, column_widths, colors, indent_size=DEFAULT_INDENT_SIZE):
     """Print formatted layers with colored output for debugging."""
-    print(f'\n{Colors.CYAN}FORMATTED LAYERS OUTPUT{Colors.RESET}')
+    print(f'\n{colors.CYAN}FORMATTED LAYERS OUTPUT{colors.RESET}')
     print('─' * 50)
 
     for layer_name, layer_data in structured_layers.items():
         rows = format_binding_rows(layer_data['rows'], column_widths, indent_size)
 
-        print(f'\n{Colors.BLUE}{layer_name}{Colors.RESET}')
-        print_colored_bindings('\n'.join(row.strip() for row in rows))
+        print(f'\n{colors.BLUE}{layer_name}{colors.RESET}')
+        print_colored_bindings('\n'.join(row.strip() for row in rows), colors)
 
 
-def print_colored_bindings(clean_bindings):
+def print_colored_bindings(clean_bindings, colors):
     """Print bindings with appropriate coloring applied."""
 
     def replace_behavior(match):
         behavior = match.group(0)
         behavior_parts = behavior.split()
-        behavior_color = get_behavior_color(behavior)
+        behavior_color = get_behavior_color(behavior, colors)
 
         if len(behavior_parts) > 1:
-            return f'{behavior_color}{behavior_parts[0]}{Colors.RESET} {" ".join(behavior_parts[1:])}'
-        return f'{behavior_color}{behavior}{Colors.RESET}'
+            return f'{behavior_color}{behavior_parts[0]}{colors.RESET} {" ".join(behavior_parts[1:])}'
+        return f'{behavior_color}{behavior}{colors.RESET}'
 
     behavior_pattern = r'&\w+(?:\s+[^&\s]+(?:\s+[^&\s]+)*)?'
 
@@ -690,9 +722,10 @@ def align_keymap_with_layout(
     column_widths = calculate_column_widths(structured_layers, layout, padding)
 
     if debug:
-        visual_debug_print_layout(layout)
-        visual_debug_print_layer_bindings(layer_data, layout, column_widths)
-        visual_debug_print_formatted_layers(structured_layers, column_widths, indent_size)
+        colors = palette_for(sys.stdout)
+        visual_debug_print_layout(layout, colors)
+        visual_debug_print_layer_bindings(layer_data, layout, column_widths, colors)
+        visual_debug_print_formatted_layers(structured_layers, column_widths, colors, indent_size)
 
     try:
         output_content = realign_bindings(keymap_content, layers, structured_layers, column_widths, layout, indent_size)
