@@ -649,7 +649,7 @@ def align_keymap_with_layout(
         print(f'Error: more than one layer node is named {", ".join(duplicates)}', file=sys.stderr)
         return False
 
-    print(f'Found layers: {names}')
+    print(f'Found layers: {", ".join(names)}')
     layer_data = layers_by_name(layers)
     structured_layers = build_layer_structure(layer_data, layout)
     column_widths = calculate_column_widths(structured_layers, layout, padding)
