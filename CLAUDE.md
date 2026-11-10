@@ -90,10 +90,10 @@ bundled files is read by nothing.
   default `indent_size` and `padding`. A change to either default, or to any output formatting,
   means regenerating those references. Test output lands in the gitignored
   `tests/test_keymaps/test_output/`, which is where to diff a failing match.
-- `misaligned/glove80_input_badly_aligned.keymap` is byte-identical to its reference, so the
-  exact-match test on it checks only that aligned input stays unchanged.
-  `glove80_input_cramped_no_spacing.keymap` and `corne_6key_input_comments_and_properties.keymap`
-  are the inputs the suite actually realigns.
+- An input in `misaligned/` that has a reference in `correct/` holds the same bindings with the
+  array contents laid out differently. `glove80_input_badly_aligned.keymap` varies the layout per layer: single
+  spaces, tabs, rows split mid-row, and two keyboard rows on one line. Everything outside the
+  arrays matches the reference byte for byte, because the aligner keeps it as it is.
 - `test_format_without_output_rewrites_the_keymap_in_place` aligns a copy of its input in
   `tmp_path`. No test writes to a fixture.
 - `get_test_file` skips a test whose fixture is missing, so a renamed fixture turns its tests into
