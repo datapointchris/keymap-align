@@ -6,14 +6,10 @@ ZMK keymap alignment tool for custom mechanical keyboards. Parses `.keymap` file
 
 keymap-align reads ZMK keymap files and a JSON layout definition, then reformats the `bindings = <...>` blocks so that each key binding aligns to its physical column position on the keyboard. This makes keymaps easier to read and maintain across different layer definitions.
 
-**Supports:**
+A binding starts at each token beginning with `&`, and takes every token after it as a parameter until the next binding starts. So `&kp A`, `&trans` and `&lt 1 SPACE` are each one binding, whatever behavior they name.
 
-- Simple bindings: `&kp A`, `&trans`, `&none`
-- Multi-parameter behaviors: `&hml LCTRL A`, `&lt 1 SPACE`
-- Nested behaviors such as `&hmr &caps_word RALT`, for the behaviors named in `MULTI_PARAM_BEHAVIORS` in `src/keymap_align/align.py`
-- Names the keymap file `#define`s to a binding, such as `XXX` for `&none`
-- Split keyboard layouts with empty positions
-- In-place file modification or separate output
+- A name the keymap file itself `#define`s to a binding, such as `#define XXX &none`, also starts a binding. A name defined in an included file is read as a parameter.
+- A parameter that is itself a behavior, as in `&hmr &caps_word RALT`, stays inside its binding only for the behaviors named in `MULTI_PARAM_BEHAVIORS` in `src/keymap_align/align.py`. Under any other behavior it starts a binding of its own.
 
 ## Installation
 
