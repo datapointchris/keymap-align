@@ -1,5 +1,6 @@
 """`keymap-align update` and the update notice share one pyselfupdate config."""
 
+from pyselfupdate import Config
 from typer.testing import CliRunner
 
 from keymap_align import cli
@@ -8,7 +9,7 @@ from keymap_align import cli
 def test_update_installs_this_tool_and_skips_the_notice_it_would_duplicate(monkeypatch):
     calls = []
     monkeypatch.setattr(cli, 'run_update', lambda config, **kwargs: calls.append((config, kwargs)))
-    notices = []
+    notices: list[Config] = []
     monkeypatch.setattr(cli, 'notify', notices.append)
 
     result = CliRunner().invoke(cli.app, ['update', '--check'])

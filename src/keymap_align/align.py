@@ -348,7 +348,8 @@ def find_layers(keymap_content):
             continue
         header = masked[start:end].split()
         name = header[-1].rsplit(':', 1)[-1] if header else ''
-        layer = read_layer(keymap_content, masked, name, *body, binding_macros)
+        body_start, body_end = body
+        layer = read_layer(keymap_content, masked, name, body_start, body_end, binding_macros)
         if layer is not None:
             layers.append(layer)
     return layers
