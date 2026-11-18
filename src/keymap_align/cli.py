@@ -130,7 +130,11 @@ def format_keymap(
     ],
     layout: Annotated[
         str | None,
-        typer.Option('--layout', help='Bundled layout name, e.g. corne42.', rich_help_panel='Layout'),
+        typer.Option(
+            '--layout',
+            help='Bundled layout name, e.g. corne42, or a path to a layout JSON (any value with / or \\ or ending in .json).',
+            rich_help_panel='Layout',
+        ),
     ] = None,
     layout_file: Annotated[
         str | None,
