@@ -88,8 +88,8 @@ bundled files is read by nothing.
 
 ## The golden tests compare bytes, and one input is already aligned
 
-- pytest is in the `test` dependency group, which a plain `uv sync` leaves out.
-  `uv sync --all-groups` installs it. CI supplies it with `uv run --with pytest`.
+- pytest is in the `dev` dependency group, which a plain `uv sync` installs, so `uv run pytest` works in a fresh
+  checkout. CI supplies it with `uv run --with pytest`.
 - The exact-match tests compare output byte for byte against `tests/test_keymaps/correct/`, at the
   default `indent_size` and `padding`. A change to either default, or to any output formatting,
   means regenerating those references. Test output lands in the gitignored
